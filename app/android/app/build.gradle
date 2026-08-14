@@ -16,6 +16,19 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Um APK por arquitetura de CPU. O APK único carregava as bibliotecas
+    // nativas do leitor de código de barras para as quatro arquiteturas (~19 MB
+    // só nisso), sendo que x86/x86_64 só aparecem em emulador. Cada celular
+    // baixa apenas o que usa.
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'arm64-v8a', 'armeabi-v7a'
+            universalApk false
+        }
+    }
+
     // Assinatura vem de variáveis de ambiente: a chave nunca entra no repositório.
     // Sem elas, o build de release sai sem assinar (útil para checar compilação).
     signingConfigs {
