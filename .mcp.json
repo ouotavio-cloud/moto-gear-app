@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "brightdata": {
+      "url": "https://mcp.brightdata.com/mcp?token=YOUR_BRIGHTDATA_API_TOKEN&pro=1"
+    }
+  }
+}
