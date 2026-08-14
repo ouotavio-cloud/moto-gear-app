@@ -92,7 +92,27 @@ function comandosDo(sql) {
     .filter(Boolean);
 }
 
-async function migrar() {
+/**
+ * Um banco de antes das organizações (oficinas) tem a tabela `usuarios`, mas
+ * sem `organizacao_id` — e sem organização não tem como migrar quem é dono de
+ * quê. Não é um caso hipotético: é exatamente o banco em produção na hora em
+ * que essa mudança chega. Como não dá pra migrar, recomeça do zero sozinho,
+ * sem depender de alguém apagar o banco manualmente no Render.
+ */
+async function recriarSeEsquemaAntigo() {
+  const { rows } = await executar(
+    "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'usuarios'"
+  );
+  if (!rows.length) return; // banco novo: as tabelas ainda nem existem.
+  if (rows.some((r) => r.column_name === 'organizacao_id')) return; // já está no formato atual.
+
+  console.log('Banco em formato antigo (sem organizações). Recriando do zero...');
+  const tabelasAntigas = ['ordens', 'transacoes', 'produtos', 'servicos', 'clientes', 'fornecedores', 'usuarios', 'organizacoes', 'configuracoes'];
+  for (const tabela of tabelasAntigas) await executar(`DROP TABLE IF EXISTS ${tabela} CASCADE`);
+}
+
+export async function migrar() {
+  await recriarSeEsquemaAntigo();
   const sql = await readFile(join(AQUI, 'schema.sql'), 'utf8');
   for (const comando of comandosDo(sql)) await executar(comando);
 }

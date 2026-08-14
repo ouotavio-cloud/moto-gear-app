@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { subirServidor, estado, criarProduto, criarCliente, USUARIO, SENHA } from './ajuda.js';
+import { subirServidor, estado, criarProduto, criarCliente, USUARIO, SENHA, OFICINA } from './ajuda.js';
 
 let servidor;
 let api;
@@ -11,6 +11,17 @@ test.before(async () => {
 });
 
 test.after(() => servidor.fechar());
+
+/** Chamada autenticada crua, para testar com um token que não é o da sessão principal. */
+async function apiComo(token, metodo, caminho, corpo) {
+  const resposta = await fetch(`${servidor.base}/api${caminho}`, {
+    method: metodo,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: corpo === undefined ? undefined : JSON.stringify(corpo)
+  });
+  const texto = await resposta.text();
+  return { status: resposta.status, corpo: texto ? JSON.parse(texto) : null };
+}
 
 /* --------------------------------- sessão --------------------------------- */
 
@@ -28,43 +39,139 @@ test('login com senha errada é recusado', async () => {
   assert.equal(resposta.status, 401);
 });
 
-test('login válido devolve token utilizável', async () => {
+test('login válido devolve token utilizável e o papel de chefe', async () => {
   const { status, corpo } = await api('GET', '/auth/eu');
   assert.equal(status, 200);
   assert.equal(corpo.usuario, USUARIO);
+  assert.equal(corpo.papel, 'chefe');
   assert.ok(SENHA);
 });
 
-test('cadastro cria usuário novo e já devolve token utilizável', async () => {
-  const resposta = await fetch(`${servidor.base}/api/auth/cadastro`, {
+/* ------------------------------ organizações ------------------------------ */
+
+test('cadastro de oficina nova cria o chefe e já devolve token utilizável', async () => {
+  const resposta = await fetch(`${servidor.base}/api/auth/cadastro/oficina`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usuario: 'novo-mecanico', senha: 'senha123' })
+    body: JSON.stringify({ usuario: 'outro-chefe', senha: 'senha123', nomeOficina: 'Outra Oficina' })
   });
   assert.equal(resposta.status, 201);
   const { token } = await resposta.json();
   assert.ok(token);
 
-  const eu = await fetch(`${servidor.base}/api/auth/eu`, { headers: { Authorization: `Bearer ${token}` } });
-  assert.equal((await eu.json()).usuario, 'novo-mecanico');
+  const eu = await apiComo(token, 'GET', '/auth/eu');
+  assert.equal(eu.corpo.usuario, 'outro-chefe');
+  assert.equal(eu.corpo.papel, 'chefe');
+});
+
+test('cadastro de oficina sem nome é recusado', async () => {
+  const resposta = await fetch(`${servidor.base}/api/auth/cadastro/oficina`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: 'sem-oficina', senha: 'senha123', nomeOficina: '   ' })
+  });
+  assert.equal(resposta.status, 400);
 });
 
 test('cadastro recusa nome de usuário já existente', async () => {
-  const resposta = await fetch(`${servidor.base}/api/auth/cadastro`, {
+  const resposta = await fetch(`${servidor.base}/api/auth/cadastro/oficina`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usuario: USUARIO, senha: 'outrasenha' })
+    body: JSON.stringify({ usuario: USUARIO, senha: 'outrasenha', nomeOficina: 'Duplicada' })
   });
   assert.equal(resposta.status, 409);
 });
 
 test('cadastro recusa senha curta', async () => {
-  const resposta = await fetch(`${servidor.base}/api/auth/cadastro`, {
+  const resposta = await fetch(`${servidor.base}/api/auth/cadastro/oficina`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usuario: 'fulano', senha: '123' })
+    body: JSON.stringify({ usuario: 'fulano', senha: '123', nomeOficina: 'Qualquer' })
   });
   assert.equal(resposta.status, 400);
+});
+
+test('chefe vê o código de convite da própria oficina', async () => {
+  const { status, corpo } = await api('GET', '/auth/organizacao');
+  assert.equal(status, 200);
+  assert.equal(corpo.nome, OFICINA);
+  assert.equal(corpo.souChefe, true);
+  assert.ok(corpo.codigoConvite);
+});
+
+test('funcionário entra na oficina do chefe usando o código de convite', async () => {
+  const { corpo: organizacao } = await api('GET', '/auth/organizacao');
+
+  const resposta = await fetch(`${servidor.base}/api/auth/cadastro/funcionario`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: 'novo-mecanico', senha: 'senha123', codigoConvite: organizacao.codigoConvite })
+  });
+  assert.equal(resposta.status, 201);
+  const { token } = await resposta.json();
+
+  const eu = await apiComo(token, 'GET', '/auth/eu');
+  assert.equal(eu.corpo.usuario, 'novo-mecanico');
+  assert.equal(eu.corpo.papel, 'funcionario');
+
+  const org = await apiComo(token, 'GET', '/auth/organizacao');
+  assert.equal(org.corpo.nome, OFICINA);
+  assert.equal(org.corpo.souChefe, false);
+  assert.equal(org.corpo.codigoConvite, null, 'funcionário não pode ver o código');
+});
+
+test('código de convite inválido é recusado', async () => {
+  const resposta = await fetch(`${servidor.base}/api/auth/cadastro/funcionario`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: 'intruso', senha: 'senha123', codigoConvite: 'CODIGOFALSO' })
+  });
+  assert.equal(resposta.status, 404);
+});
+
+test('só o chefe pode gerar um novo código de convite', async () => {
+  const loginFuncionario = await fetch(`${servidor.base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: 'novo-mecanico', senha: 'senha123' })
+  });
+  const { token } = await loginFuncionario.json();
+
+  const negado = await apiComo(token, 'POST', '/auth/organizacao/codigo');
+  assert.equal(negado.status, 403);
+
+  const { status, corpo } = await api('POST', '/auth/organizacao/codigo');
+  assert.equal(status, 200);
+  assert.ok(corpo.codigoConvite);
+});
+
+test('lista de usuários mostra só quem está na mesma oficina', async () => {
+  const semToken = await api('GET', '/auth/usuarios', undefined, { semToken: true });
+  assert.equal(semToken.status, 401);
+
+  const { status, corpo } = await api('GET', '/auth/usuarios');
+  assert.equal(status, 200);
+  const nomes = corpo.map((u) => u.usuario);
+  assert.ok(nomes.includes(USUARIO));
+  assert.ok(nomes.includes('novo-mecanico'));
+  assert.ok(!nomes.includes('outro-chefe'), 'usuário de outra oficina não pode aparecer aqui');
+});
+
+test('uma oficina não vê nem edita os dados de outra', async () => {
+  const loginOutro = await fetch(`${servidor.base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: 'outro-chefe', senha: 'senha123' })
+  });
+  const { token: tokenOutro } = await loginOutro.json();
+
+  const produto = await criarProduto(api, { nome: 'Exclusivo da Oficina Teste' });
+
+  const { corpo: estadoOutro } = await apiComo(tokenOutro, 'GET', '/estado');
+  assert.equal(estadoOutro.produtos.some((p) => p.id === produto.id), false, 'a outra oficina não pode ver essa peça');
+
+  const tentativaEdicao = await apiComo(tokenOutro, 'PUT', `/produtos/${produto.id}`, { nome: 'Sequestrado', custo: 1, venda: 1 });
+  assert.equal(tentativaEdicao.status, 404, 'nem consegue editar uma peça de outra oficina');
 });
 
 /* -------------------------------- cadastros ------------------------------- */

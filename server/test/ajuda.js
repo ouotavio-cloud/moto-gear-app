@@ -1,18 +1,19 @@
 /** Sobe o servidor com banco em memória e devolve um cliente HTTP autenticado. */
 
 import { conectar, desconectar } from '../src/db.js';
-import { criarUsuario } from '../src/auth.js';
+import { cadastrarChefe } from '../src/auth.js';
 import { criarApp } from '../src/app.js';
 
 export const USUARIO = 'teste';
 export const SENHA = 'segredo123';
+export const OFICINA = 'Oficina Teste';
 
 export async function subirServidor() {
   process.env.NODE_ENV = 'test';
   delete process.env.DATABASE_URL;
 
   await conectar();
-  await criarUsuario(USUARIO, SENHA);
+  await cadastrarChefe(USUARIO, SENHA, OFICINA);
 
   const servidor = criarApp().listen(0);
   await new Promise((resolve) => servidor.once('listening', resolve));

@@ -3,7 +3,7 @@
  * publica em `window.App` as funções chamadas pelos `onclick` do HTML.
  */
 
-import { carregarEstado, entrar, cadastrar, temSessao, servidor, quandoDeslogar } from './api.js';
+import { carregarEstado, entrar, cadastrarOficina, cadastrarFuncionario, temSessao, servidor, quandoDeslogar } from './api.js';
 import { setRenderers, renderAll, switchTab, fecharModal, showToast, el, setVal, txt, carregando, pararCarregando } from './ui.js';
 import * as estoque from './estoque.js';
 import * as servicos from './servicos.js';
@@ -22,9 +22,15 @@ import { renderDashboard } from './dashboard.js';
 /* --------------------------------- sessão --------------------------------- */
 
 let modoCadastro = false;
+let tipoCadastro = 'oficina';
 
 function atualizarModoLogin() {
   el('login-confirmar-linha').classList.toggle('hidden', !modoCadastro);
+  el('login-tipo-cadastro-linha').classList.toggle('hidden', !modoCadastro);
+  el('login-nome-oficina-linha').classList.toggle('hidden', !(modoCadastro && tipoCadastro === 'oficina'));
+  el('login-codigo-convite-linha').classList.toggle('hidden', !(modoCadastro && tipoCadastro === 'funcionario'));
+  el('login-tipo-oficina').classList.toggle('active', tipoCadastro === 'oficina');
+  el('login-tipo-funcionario').classList.toggle('active', tipoCadastro === 'funcionario');
   el('login-botao').innerHTML = modoCadastro
     ? '<i class="fas fa-user-plus"></i> Criar conta'
     : '<i class="fas fa-right-to-bracket"></i> Entrar';
@@ -38,11 +44,19 @@ function alternarModoLogin() {
   atualizarModoLogin();
 }
 
+function escolherTipoCadastro(tipo) {
+  tipoCadastro = tipo;
+  atualizarModoLogin();
+}
+
 function mostrarLogin() {
   setVal('login-servidor', servidor());
   setVal('login-senha', '');
   setVal('login-senha-confirmar', '');
+  setVal('login-nome-oficina', '');
+  setVal('login-codigo-convite', '');
   modoCadastro = false;
+  tipoCadastro = 'oficina';
   atualizarModoLogin();
   el('tela-login').classList.add('active');
   el('login-erro').textContent = '';
@@ -97,9 +111,22 @@ async function fazerCadastro() {
     return;
   }
 
+  const nomeOficina = txt('login-nome-oficina');
+  const codigoConvite = txt('login-codigo-convite');
+  if (tipoCadastro === 'oficina' && !nomeOficina) {
+    el('login-erro').textContent = 'Informe o nome da oficina.';
+    return;
+  }
+  if (tipoCadastro === 'funcionario' && !codigoConvite) {
+    el('login-erro').textContent = 'Informe o código de convite.';
+    return;
+  }
+
   carregando('Criando conta...');
   try {
-    await cadastrar({ url, usuario, senha });
+    if (tipoCadastro === 'oficina') await cadastrarOficina({ url, usuario, senha, nomeOficina });
+    else await cadastrarFuncionario({ url, usuario, senha, codigoConvite });
+
     await carregarEstado();
     esconderLogin();
     renderAll();
@@ -120,6 +147,8 @@ const App = {
   fazerCadastro,
   enviarFormLogin,
   alternarModoLogin,
+  escolherTipoCadastro,
+  gerarNovoCodigoConvite: configuracoes.gerarNovoCodigoConvite,
 
   // Estoque
   renderEstoque: estoque.renderEstoque,

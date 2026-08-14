@@ -31,6 +31,18 @@
         <label>Confirmar senha</label>
         <input type="password" id="login-senha-confirmar" autocomplete="new-password">
       </div>
+      <div id="login-tipo-cadastro-linha" class="hidden mb-3 flex gap-2">
+        <button type="button" id="login-tipo-oficina" class="sub-tab" onclick="App.escolherTipoCadastro('oficina')">Nova oficina</button>
+        <button type="button" id="login-tipo-funcionario" class="sub-tab" onclick="App.escolherTipoCadastro('funcionario')">Tenho convite</button>
+      </div>
+      <div id="login-nome-oficina-linha" class="hidden">
+        <label>Nome da oficina</label>
+        <input type="text" id="login-nome-oficina" placeholder="Ex: Moto Gear Oficina">
+      </div>
+      <div id="login-codigo-convite-linha" class="hidden">
+        <label>Código de convite</label>
+        <input type="text" id="login-codigo-convite" placeholder="Peça pro chefe da oficina" autocapitalize="characters">
+      </div>
       <p id="login-erro" class="mb-3 text-sm text-red-400"></p>
       <button id="login-botao" class="btn-primary" onclick="App.enviarFormLogin()"><i class="fas fa-right-to-bracket"></i> Entrar</button>
       <p class="mt-3 text-center text-sm text-slate-400">
@@ -180,6 +192,22 @@
         <label>Nova senha</label>
         <input type="password" id="cfg-senha-nova" autocomplete="new-password">
         <button onclick="App.trocarSenha()" class="btn-secondary"><i class="fas fa-key"></i> Alterar senha</button>
+      </div>
+
+      <div class="card border-l-4 border-l-gear-orange">
+        <h3 class="mb-2 font-bold text-slate-300">Sua oficina</h3>
+        <p class="text-lg font-bold text-white" id="cfg-oficina-nome">Carregando...</p>
+        <div id="cfg-codigo-convite-wrap" class="hidden mt-3">
+          <label>Código de convite (pra novos funcionários entrarem)</label>
+          <p class="rounded-xl border border-gear-700 bg-gear-900 p-3 text-center text-xl font-bold tracking-widest text-gear-orange" id="cfg-codigo-convite"></p>
+          <button onclick="App.gerarNovoCodigoConvite()" class="btn-secondary mt-2"><i class="fas fa-rotate"></i> Gerar novo código</button>
+        </div>
+      </div>
+
+      <div class="card border-l-4 border-l-green-500">
+        <h3 class="mb-2 font-bold text-slate-300">Usuários da oficina</h3>
+        <p class="mb-3 text-sm text-slate-400">Quem tem conta nesta oficina.</p>
+        <div id="cfg-usuarios-lista" class="space-y-2 text-sm text-slate-300">Carregando...</div>
       </div>
 
       <div class="card border-l-4 border-l-blue-500">

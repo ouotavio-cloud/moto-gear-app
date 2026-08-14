@@ -1,7 +1,7 @@
 /** Configurações: servidor, senha e preferências locais de tela. */
 
 import { req, servidor, setServidor, sair } from './api.js';
-import { el, showToast, abrirModal, fecharModal, setVal, txt, num } from './ui.js';
+import { el, esc, showToast, abrirModal, fecharModal, setVal, txt, num } from './ui.js';
 
 const CHAVE_MARGEM = 'motogear_margem';
 
@@ -20,6 +20,53 @@ export function abrirConfig() {
   setVal('cfg-senha-atual', '');
   setVal('cfg-senha-nova', '');
   abrirModal('modal-config');
+  renderOrganizacao();
+  renderUsuarios();
+}
+
+async function renderOrganizacao() {
+  const nomeEl = el('cfg-oficina-nome');
+  const codigoWrap = el('cfg-codigo-convite-wrap');
+  try {
+    const organizacao = await req('GET', '/auth/organizacao');
+    nomeEl.textContent = organizacao.nome;
+    codigoWrap.classList.toggle('hidden', !organizacao.souChefe);
+    if (organizacao.souChefe) el('cfg-codigo-convite').textContent = organizacao.codigoConvite;
+  } catch (err) {
+    nomeEl.textContent = err.message;
+  }
+}
+
+export async function gerarNovoCodigoConvite() {
+  if (!confirm('Gerar um novo código de convite? O código antigo deixa de funcionar.')) return;
+  try {
+    const { codigoConvite } = await req('POST', '/auth/organizacao/codigo');
+    el('cfg-codigo-convite').textContent = codigoConvite;
+    showToast('Novo código gerado!');
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+
+async function renderUsuarios() {
+  const lista = el('cfg-usuarios-lista');
+  try {
+    const usuarios = await req('GET', '/auth/usuarios');
+    lista.innerHTML = usuarios
+      .map(
+        (u) => `
+      <div class="flex items-center justify-between border-b border-gear-700 pb-2">
+        <span>
+          <span class="font-bold text-white">${esc(u.usuario)}</span>
+          ${u.papel === 'chefe' ? '<span class="badge ml-2">Chefe</span>' : ''}
+        </span>
+        <span class="text-slate-400">${new Date(u.criado_em).toLocaleDateString('pt-BR')}</span>
+      </div>`
+      )
+      .join('');
+  } catch (err) {
+    lista.textContent = err.message;
+  }
 }
 
 export function salvarPreferencias() {

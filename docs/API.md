@@ -1,10 +1,27 @@
 # API
 
-Base: `/api`. Tudo em JSON. Fora `/saude`, `/auth/login` e `/auth/cadastro`,
-toda rota exige `Authorization: Bearer <token>`.
+Base: `/api`. Tudo em JSON. Fora `/saude`, `/auth/login` e as duas rotas de
+`/auth/cadastro/*`, toda rota exige `Authorization: Bearer <token>`.
 
 Erro vem sempre como `{ "erro": "mensagem em português" }` — a mensagem é feita
 para ser mostrada ao usuário. Status 500 é o único genérico; o resto explica.
+
+## Formato antigo do banco
+
+Um banco que ainda não conhece organizações (de antes dessa funcionalidade)
+não tem como ser migrado — os dados não têm dono. No primeiro boot com o
+código novo, o servidor detecta isso sozinho (a tabela `usuarios` existe mas
+não tem `organizacao_id`) e recria as tabelas do zero, sem precisar de
+intervenção manual no banco.
+
+## Multi-oficina
+
+Cada organização (oficina) é isolada das outras: todo dado — estoque,
+clientes, caixa, OS — pertence a uma organização, e o token de sessão carrega
+`organizacaoId` e `papel` (`chefe` ou `funcionario`). Quem cadastra uma
+oficina nova vira o chefe dela; o chefe tem um código de convite (em
+`/auth/organizacao`) que outras pessoas usam para entrar como funcionário da
+mesma oficina.
 
 ## Sessão
 
@@ -12,9 +29,15 @@ para ser mostrada ao usuário. Status 500 é o único genérico; o resto explica
 |---|---|---|
 | `GET` | `/saude` | Diz se o servidor está no ar e se a IA está configurada |
 | `POST` | `/auth/login` | `{usuario, senha}` → `{token}` (30 dias) |
-| `POST` | `/auth/cadastro` | `{usuario, senha}` → cria a conta e já devolve `{token}`. Usuário com 3+ caracteres, senha com 6+ |
-| `GET` | `/auth/eu` | Quem está logado |
+| `POST` | `/auth/cadastro/oficina` | `{usuario, senha, nomeOficina}` → cria a oficina e o usuário como chefe; já devolve `{token}` |
+| `POST` | `/auth/cadastro/funcionario` | `{usuario, senha, codigoConvite}` → entra na oficina dona do código como funcionário; já devolve `{token}` |
+| `GET` | `/auth/eu` | Quem está logado: `{usuario, papel}` |
+| `GET` | `/auth/usuarios` | Lista `{usuario, papel, criado_em}` de todos os usuários da mesma oficina |
+| `GET` | `/auth/organizacao` | `{nome, souChefe, codigoConvite}` — `codigoConvite` só vem preenchido para o chefe |
+| `POST` | `/auth/organizacao/codigo` | Gera um novo código de convite (invalida o antigo). Só o chefe pode chamar — `403` para funcionário |
 | `POST` | `/auth/senha` | `{senhaAtual, senhaNova}` |
+
+Usuário com 3+ caracteres, senha com 6+ em ambas as rotas de cadastro.
 
 ## Estado
 
