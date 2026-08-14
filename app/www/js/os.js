@@ -10,6 +10,7 @@ import { db, req, acao } from './api.js';
 import { el, esc, moeda, showToast, abrirModal, fecharModal, setVal, txt, num, int } from './ui.js';
 import { precoTotalServico } from './servicos.js';
 import { clienteAtual, nomeCliente } from './estado.js';
+import { cobrarNoCartao, maquininhaDisponivel } from './plugpag.js';
 
 let itensTemp = [];
 
@@ -156,6 +157,7 @@ export function verificarStatusOS() {
 
   el('os-tempo-container').classList.toggle('hidden', status === 'Pendente');
   el('os-pagamento-container').classList.toggle('hidden', status !== 'Concluída' || finalizada);
+  el('btn-os-cartao')?.classList.toggle('hidden', status !== 'Concluída' || finalizada || !maquininhaDisponivel());
 
   el('os-status-aviso').textContent =
     {
@@ -230,4 +232,15 @@ export function abrirCentralOS() {
     : '<p class="mt-4 text-center text-slate-500">Nenhuma O.S. ativa.</p>';
 
   abrirModal('modal-central-os');
+}
+
+export async function cobrarOSnoCartao() {
+  const valor = num('os-valor-pago') || num('os-total');
+  if (valor <= 0) return showToast('Valor inválido para cobrar.');
+  const id = txt('os-id');
+  const descricao = id ? `OS #${id.slice(-4)}` : 'Ordem de serviço';
+  const resultado = await cobrarNoCartao(valor, descricao);
+  if (resultado?.aprovado) {
+    showToast('Pagamento no cartão aprovado! Salve a OS para registrar.');
+  }
 }
