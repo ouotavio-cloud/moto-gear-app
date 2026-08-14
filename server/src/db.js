@@ -32,6 +32,15 @@ export async function conectar({ databaseUrl = process.env.DATABASE_URL } = {}) 
       max: Number(process.env.PG_POOL_MAX ?? 5)
     });
 
+    // Obrigatório com o driver `pg`: um cliente ocioso do pool que perde a
+    // conexão (o Postgres do Render fecha conexão inativa periodicamente)
+    // emite 'error' no pool. Sem este listener, Node trata como exceção não
+    // tratada e derruba o processo inteiro — mata o servidor por uma simples
+    // reconexão que o pool resolveria sozinho na próxima consulta.
+    pool.on('error', (err) => {
+      console.error('Erro numa conexão ociosa do pool (recuperável):', err.message);
+    });
+
     executar = (sql, params) => pool.query(sql, params);
     comTransacao = async (fn) => {
       const cliente = await pool.connect();
