@@ -35,6 +35,38 @@ test('login válido devolve token utilizável', async () => {
   assert.ok(SENHA);
 });
 
+test('cadastro cria usuário novo e já devolve token utilizável', async () => {
+  const resposta = await fetch(`${servidor.base}/api/auth/cadastro`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: 'novo-mecanico', senha: 'senha123' })
+  });
+  assert.equal(resposta.status, 201);
+  const { token } = await resposta.json();
+  assert.ok(token);
+
+  const eu = await fetch(`${servidor.base}/api/auth/eu`, { headers: { Authorization: `Bearer ${token}` } });
+  assert.equal((await eu.json()).usuario, 'novo-mecanico');
+});
+
+test('cadastro recusa nome de usuário já existente', async () => {
+  const resposta = await fetch(`${servidor.base}/api/auth/cadastro`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: USUARIO, senha: 'outrasenha' })
+  });
+  assert.equal(resposta.status, 409);
+});
+
+test('cadastro recusa senha curta', async () => {
+  const resposta = await fetch(`${servidor.base}/api/auth/cadastro`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: 'fulano', senha: '123' })
+  });
+  assert.equal(resposta.status, 400);
+});
+
 /* -------------------------------- cadastros ------------------------------- */
 
 test('cadastrar peça com estoque inicial lança a compra como despesa', async () => {

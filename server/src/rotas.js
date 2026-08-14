@@ -1,7 +1,7 @@
 /** Rotas da API. */
 
 import { Router } from 'express';
-import { autenticar, exigirLogin, trocarSenha } from './auth.js';
+import { autenticar, cadastrarUsuario, exigirLogin, trocarSenha } from './auth.js';
 import * as negocio from './negocio.js';
 import * as cadastros from './cadastros.js';
 import { lerNotaFiscal, iaDisponivel } from './ia.js';
@@ -23,6 +23,18 @@ export function criarRotas() {
       const sessao = await autenticar(String(usuario).trim(), String(senha));
       if (!sessao) return res.status(401).json({ erro: 'Usuário ou senha incorretos.' });
       res.json(sessao);
+    })
+  );
+
+  api.post(
+    '/auth/cadastro',
+    rota(async (req, res) => {
+      const { usuario, senha } = req.body ?? {};
+      if (!usuario || !senha) return res.status(400).json({ erro: 'Informe usuário e senha.' });
+
+      await cadastrarUsuario(usuario, senha);
+      const sessao = await autenticar(String(usuario).trim(), String(senha));
+      res.status(201).json(sessao);
     })
   );
 

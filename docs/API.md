@@ -1,7 +1,7 @@
 # API
 
-Base: `/api`. Tudo em JSON. Fora `/saude` e `/auth/login`, toda rota exige
-`Authorization: Bearer <token>`.
+Base: `/api`. Tudo em JSON. Fora `/saude`, `/auth/login` e `/auth/cadastro`,
+toda rota exige `Authorization: Bearer <token>`.
 
 Erro vem sempre como `{ "erro": "mensagem em português" }` — a mensagem é feita
 para ser mostrada ao usuário. Status 500 é o único genérico; o resto explica.
@@ -12,6 +12,7 @@ para ser mostrada ao usuário. Status 500 é o único genérico; o resto explica
 |---|---|---|
 | `GET` | `/saude` | Diz se o servidor está no ar e se a IA está configurada |
 | `POST` | `/auth/login` | `{usuario, senha}` → `{token}` (30 dias) |
+| `POST` | `/auth/cadastro` | `{usuario, senha}` → cria a conta e já devolve `{token}`. Usuário com 3+ caracteres, senha com 6+ |
 | `GET` | `/auth/eu` | Quem está logado |
 | `POST` | `/auth/senha` | `{senhaAtual, senhaNova}` |
 
