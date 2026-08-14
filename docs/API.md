@@ -6,6 +6,14 @@ Base: `/api`. Tudo em JSON. Fora `/saude`, `/auth/login` e as duas rotas de
 Erro vem sempre como `{ "erro": "mensagem em português" }` — a mensagem é feita
 para ser mostrada ao usuário. Status 500 é o único genérico; o resto explica.
 
+## Formato antigo do banco
+
+Um banco que ainda não conhece organizações (de antes dessa funcionalidade)
+não tem como ser migrado — os dados não têm dono. No primeiro boot com o
+código novo, o servidor detecta isso sozinho (a tabela `usuarios` existe mas
+não tem `organizacao_id`) e recria as tabelas do zero, sem precisar de
+intervenção manual no banco.
+
 ## Multi-oficina
 
 Cada organização (oficina) é isolada das outras: todo dado — estoque,
