@@ -40,6 +40,18 @@ export async function criarUsuario(usuario, senha) {
   return { id, usuario };
 }
 
+/** Auto-cadastro: qualquer pessoa com o endereço do servidor pode criar sua conta. */
+export async function cadastrarUsuario(usuario, senha) {
+  const nome = String(usuario ?? '').trim();
+  if (nome.length < 3) throw Object.assign(new Error('O usuário precisa ter ao menos 3 caracteres.'), { status: 400 });
+  if (String(senha ?? '').length < 6) throw Object.assign(new Error('A senha precisa ter ao menos 6 caracteres.'), { status: 400 });
+
+  const existente = await uma('SELECT id FROM usuarios WHERE usuario = $1', [nome]);
+  if (existente) throw Object.assign(new Error('Esse nome de usuário já está em uso.'), { status: 409 });
+
+  return criarUsuario(nome, senha);
+}
+
 /**
  * Cria o primeiro usuário no boot. A senha vem de ADMIN_SENHA; sem ela, é
  * sorteada e impressa uma única vez no log do deploy.

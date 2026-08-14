@@ -3,7 +3,7 @@
  * publica em `window.App` as funções chamadas pelos `onclick` do HTML.
  */
 
-import { carregarEstado, entrar, temSessao, servidor, quandoDeslogar } from './api.js';
+import { carregarEstado, entrar, cadastrar, temSessao, servidor, quandoDeslogar } from './api.js';
 import { setRenderers, renderAll, switchTab, fecharModal, showToast, el, setVal, txt, carregando, pararCarregando } from './ui.js';
 import * as estoque from './estoque.js';
 import * as servicos from './servicos.js';
@@ -21,9 +21,29 @@ import { renderDashboard } from './dashboard.js';
 
 /* --------------------------------- sessão --------------------------------- */
 
+let modoCadastro = false;
+
+function atualizarModoLogin() {
+  el('login-confirmar-linha').classList.toggle('hidden', !modoCadastro);
+  el('login-botao').innerHTML = modoCadastro
+    ? '<i class="fas fa-user-plus"></i> Criar conta'
+    : '<i class="fas fa-right-to-bracket"></i> Entrar';
+  el('login-troca-texto').textContent = modoCadastro ? 'Já tem conta?' : 'Ainda não tem conta?';
+  el('login-troca-botao').textContent = modoCadastro ? 'Entrar' : 'Cadastre-se';
+  el('login-erro').textContent = '';
+}
+
+function alternarModoLogin() {
+  modoCadastro = !modoCadastro;
+  atualizarModoLogin();
+}
+
 function mostrarLogin() {
   setVal('login-servidor', servidor());
   setVal('login-senha', '');
+  setVal('login-senha-confirmar', '');
+  modoCadastro = false;
+  atualizarModoLogin();
   el('tela-login').classList.add('active');
   el('login-erro').textContent = '';
   document.body.dataset.logado = 'nao';
@@ -32,6 +52,10 @@ function mostrarLogin() {
 function esconderLogin() {
   el('tela-login').classList.remove('active');
   document.body.dataset.logado = 'sim';
+}
+
+function enviarFormLogin() {
+  return modoCadastro ? fazerCadastro() : fazerLogin();
 }
 
 async function fazerLogin() {
@@ -58,12 +82,44 @@ async function fazerLogin() {
   }
 }
 
+async function fazerCadastro() {
+  const url = txt('login-servidor');
+  const usuario = txt('login-usuario');
+  const senha = el('login-senha').value;
+  const confirmar = el('login-senha-confirmar').value;
+
+  if (!usuario || !senha) {
+    el('login-erro').textContent = 'Informe usuário e senha.';
+    return;
+  }
+  if (senha !== confirmar) {
+    el('login-erro').textContent = 'As senhas não coincidem.';
+    return;
+  }
+
+  carregando('Criando conta...');
+  try {
+    await cadastrar({ url, usuario, senha });
+    await carregarEstado();
+    esconderLogin();
+    renderAll();
+    showToast('Conta criada. Bem-vindo!');
+  } catch (err) {
+    el('login-erro').textContent = err.message;
+  } finally {
+    pararCarregando();
+  }
+}
+
 /* ------------------------------- funções da UI ---------------------------- */
 
 const App = {
   switchTab,
   fecharModal,
   fazerLogin,
+  fazerCadastro,
+  enviarFormLogin,
+  alternarModoLogin,
 
   // Estoque
   renderEstoque: estoque.renderEstoque,

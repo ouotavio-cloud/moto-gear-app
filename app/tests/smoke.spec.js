@@ -52,6 +52,37 @@ test('login correto abre o app', async ({ page, baseURL }) => {
   expect(erros).toEqual([]);
 });
 
+test('cadastro de novo usuário abre o app já logado', async ({ page, baseURL }) => {
+  const erros = coletarErros(page);
+  await page.goto('/');
+  await page.locator('#login-troca-botao').click();
+  await expect(page.locator('#login-confirmar-linha')).toBeVisible();
+
+  await page.fill('#login-servidor', baseURL);
+  await page.fill('#login-usuario', 'novo-mecanico');
+  await page.fill('#login-senha', 'senha123');
+  await page.fill('#login-senha-confirmar', 'senha123');
+  await page.locator('#tela-login').getByRole('button', { name: /Criar conta/ }).click();
+
+  await expect(page.locator('#tela-login')).not.toHaveClass(/active/);
+  await expect(page.locator('#dash-saldo')).toHaveText('R$ 0,00');
+  expect(erros).toEqual([]);
+});
+
+test('cadastro com senhas diferentes mostra erro e não envia nada', async ({ page, baseURL }) => {
+  await page.goto('/');
+  await page.locator('#login-troca-botao').click();
+
+  await page.fill('#login-servidor', baseURL);
+  await page.fill('#login-usuario', 'outro-mecanico');
+  await page.fill('#login-senha', 'senha123');
+  await page.fill('#login-senha-confirmar', 'diferente');
+  await page.locator('#tela-login').getByRole('button', { name: /Criar conta/ }).click();
+
+  await expect(page.locator('#login-erro')).toContainText('coincidem');
+  await expect(page.locator('#tela-login')).toHaveClass(/active/);
+});
+
 /* -------------------------------- navegação -------------------------------- */
 
 test('navega por todas as abas sem erro', async ({ page, baseURL }) => {

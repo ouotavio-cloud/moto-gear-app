@@ -107,6 +107,14 @@ export async function entrar({ url, usuario, senha }) {
   return novo;
 }
 
+export async function cadastrar({ url, usuario, senha }) {
+  if (url) setServidor(url);
+  guardar(CHAVE_TOKEN, '');
+  const { token: novo } = await req('POST', '/auth/cadastro', { usuario, senha });
+  guardar(CHAVE_TOKEN, novo);
+  return novo;
+}
+
 export function sair() {
   guardar(CHAVE_TOKEN, '');
   aoPerderSessao();
