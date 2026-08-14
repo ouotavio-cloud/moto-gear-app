@@ -88,8 +88,9 @@ test('cadastro com senhas diferentes mostra erro e não envia nada', async ({ pa
 test('cadastro por código de convite entra na oficina do chefe', async ({ page, baseURL, browser }) => {
   await abrirLogado(page, baseURL, token);
   await page.locator('header .fa-cog').click();
-  const codigo = (await page.locator('#cfg-codigo-convite').textContent()).trim();
-  expect(codigo).toBeTruthy();
+  const codigoLocator = page.locator('#cfg-codigo-convite');
+  await expect(codigoLocator).toContainText(/\w/); // espera o fetch assíncrono preencher o código
+  const codigo = (await codigoLocator.textContent()).trim();
   await page.locator('#modal-config .fa-times').click();
 
   // Contexto isolado: simula um segundo aparelho, sem herdar a sessão do chefe.
