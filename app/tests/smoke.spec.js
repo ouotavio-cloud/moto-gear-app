@@ -52,16 +52,18 @@ test('login correto abre o app', async ({ page, baseURL }) => {
   expect(erros).toEqual([]);
 });
 
-test('cadastro de novo usuário abre o app já logado', async ({ page, baseURL }) => {
+test('cadastro de oficina nova abre o app já logado como chefe', async ({ page, baseURL }) => {
   const erros = coletarErros(page);
   await page.goto('/');
   await page.locator('#login-troca-botao').click();
   await expect(page.locator('#login-confirmar-linha')).toBeVisible();
+  await expect(page.locator('#login-nome-oficina-linha')).toBeVisible();
 
   await page.fill('#login-servidor', baseURL);
-  await page.fill('#login-usuario', 'novo-mecanico');
+  await page.fill('#login-usuario', 'novo-chefe');
   await page.fill('#login-senha', 'senha123');
   await page.fill('#login-senha-confirmar', 'senha123');
+  await page.fill('#login-nome-oficina', 'Oficina do Zé');
   await page.locator('#tela-login').getByRole('button', { name: /Criar conta/ }).click();
 
   await expect(page.locator('#tela-login')).not.toHaveClass(/active/);
@@ -80,6 +82,48 @@ test('cadastro com senhas diferentes mostra erro e não envia nada', async ({ pa
   await page.locator('#tela-login').getByRole('button', { name: /Criar conta/ }).click();
 
   await expect(page.locator('#login-erro')).toContainText('coincidem');
+  await expect(page.locator('#tela-login')).toHaveClass(/active/);
+});
+
+test('cadastro por código de convite entra na oficina do chefe', async ({ page, baseURL, browser }) => {
+  await abrirLogado(page, baseURL, token);
+  await page.locator('header .fa-cog').click();
+  const codigo = (await page.locator('#cfg-codigo-convite').textContent()).trim();
+  expect(codigo).toBeTruthy();
+  await page.locator('#modal-config .fa-times').click();
+
+  // Contexto isolado: simula um segundo aparelho, sem herdar a sessão do chefe.
+  const contexto2 = await browser.newContext();
+  const pagina2 = await contexto2.newPage();
+  await pagina2.goto('/');
+  await pagina2.locator('#login-troca-botao').click();
+  await pagina2.locator('#login-tipo-funcionario').click();
+  await expect(pagina2.locator('#login-codigo-convite-linha')).toBeVisible();
+
+  await pagina2.fill('#login-servidor', baseURL);
+  await pagina2.fill('#login-usuario', 'funcionario-convidado');
+  await pagina2.fill('#login-senha', 'senha123');
+  await pagina2.fill('#login-senha-confirmar', 'senha123');
+  await pagina2.fill('#login-codigo-convite', codigo);
+  await pagina2.locator('#tela-login').getByRole('button', { name: /Criar conta/ }).click();
+
+  await expect(pagina2.locator('#tela-login')).not.toHaveClass(/active/);
+  await contexto2.close();
+});
+
+test('código de convite inválido mostra erro e não entra', async ({ page, baseURL }) => {
+  await page.goto('/');
+  await page.locator('#login-troca-botao').click();
+  await page.locator('#login-tipo-funcionario').click();
+
+  await page.fill('#login-servidor', baseURL);
+  await page.fill('#login-usuario', 'intruso');
+  await page.fill('#login-senha', 'senha123');
+  await page.fill('#login-senha-confirmar', 'senha123');
+  await page.fill('#login-codigo-convite', 'CODIGOFALSO');
+  await page.locator('#tela-login').getByRole('button', { name: /Criar conta/ }).click();
+
+  await expect(page.locator('#login-erro')).toContainText('inválido');
   await expect(page.locator('#tela-login')).toHaveClass(/active/);
 });
 

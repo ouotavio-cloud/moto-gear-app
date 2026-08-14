@@ -3,6 +3,9 @@
  * transação de banco, para que duas pessoas usando o app ao mesmo tempo não
  * consigam vender a mesma peça duas vezes.
  *
+ * Toda função recebe `organizacaoId` e toda consulta filtra por ele: é o que
+ * isola os dados de uma oficina das demais.
+ *
  * Regras que valem a pena ter em mente:
  * - Orçamento não toca em estoque nem em caixa; só quando vira OS.
  * - O estoque de uma OS é debitado uma única vez, ao entrar em "Andamento" ou
@@ -23,14 +26,14 @@ const inteiro = (v, minimo = 0) => Math.max(minimo, Math.trunc(Number(v) || 0));
 
 /* --------------------------------- estado --------------------------------- */
 
-export async function estadoCompleto() {
+export async function estadoCompleto(organizacaoId) {
   const [produtos, servicos, clientes, fornecedores, ordens, transacoes] = await Promise.all([
-    todas('SELECT * FROM produtos WHERE ativo = TRUE ORDER BY nome'),
-    todas('SELECT * FROM servicos WHERE ativo = TRUE ORDER BY nome'),
-    todas('SELECT * FROM clientes WHERE ativo = TRUE ORDER BY nome'),
-    todas('SELECT * FROM fornecedores WHERE ativo = TRUE ORDER BY nome'),
-    todas('SELECT * FROM ordens ORDER BY data'),
-    todas('SELECT * FROM transacoes ORDER BY data')
+    todas('SELECT * FROM produtos WHERE organizacao_id = $1 AND ativo = TRUE ORDER BY nome', [organizacaoId]),
+    todas('SELECT * FROM servicos WHERE organizacao_id = $1 AND ativo = TRUE ORDER BY nome', [organizacaoId]),
+    todas('SELECT * FROM clientes WHERE organizacao_id = $1 AND ativo = TRUE ORDER BY nome', [organizacaoId]),
+    todas('SELECT * FROM fornecedores WHERE organizacao_id = $1 AND ativo = TRUE ORDER BY nome', [organizacaoId]),
+    todas('SELECT * FROM ordens WHERE organizacao_id = $1 ORDER BY data', [organizacaoId]),
+    todas('SELECT * FROM transacoes WHERE organizacao_id = $1 ORDER BY data', [organizacaoId])
   ]);
 
   return {
@@ -46,33 +49,33 @@ export async function estadoCompleto() {
 
 /* ------------------------------- transações ------------------------------- */
 
-async function lancar(tx, { desc, valor, tipo, clienteNome = 'Avulso', origemDetalhada = '', origem = null, itens = null }) {
+async function lancar(tx, organizacaoId, { desc, valor, tipo, clienteNome = 'Avulso', origemDetalhada = '', origem = null, itens = null }) {
   const id = novoId();
   await tx.query(
-    `INSERT INTO transacoes (id, descricao, valor, tipo, cliente_nome, origem_detalhada, origem, itens)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [id, desc, dinheiro(valor), tipo, clienteNome, origemDetalhada, origem, itens ? JSON.stringify(itens) : null]
+    `INSERT INTO transacoes (id, organizacao_id, descricao, valor, tipo, cliente_nome, origem_detalhada, origem, itens)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [id, organizacaoId, desc, dinheiro(valor), tipo, clienteNome, origemDetalhada, origem, itens ? JSON.stringify(itens) : null]
   );
   return id;
 }
 
-export function registrarDespesa({ desc, valor }) {
+export function registrarDespesa({ desc, valor }, organizacaoId) {
   const descricao = String(desc ?? '').trim();
   if (!descricao) throw erro(400, 'Descrição obrigatória.');
   if (dinheiro(valor) <= 0) throw erro(400, 'Informe um valor maior que zero.');
   return transacao((tx) =>
-    lancar(tx, { desc: descricao, valor, tipo: 'saida', clienteNome: 'Sistema', origemDetalhada: 'Lançamento manual de despesa' })
+    lancar(tx, organizacaoId, { desc: descricao, valor, tipo: 'saida', clienteNome: 'Sistema', origemDetalhada: 'Lançamento manual de despesa' })
   );
 }
 
-export async function limparCaixa() {
-  await query('DELETE FROM transacoes');
+export async function limparCaixa(organizacaoId) {
+  await query('DELETE FROM transacoes WHERE organizacao_id = $1', [organizacaoId]);
 }
 
 /* -------------------------------- estoque --------------------------------- */
 
 /** Soma as peças que saem por item da OS, incluindo as embutidas nos serviços. */
-async function calcularBaixas(tx, itens) {
+async function calcularBaixas(tx, itens, organizacaoId) {
   const porProduto = new Map();
   const somar = (produtoId, qtd) => porProduto.set(produtoId, (porProduto.get(produtoId) ?? 0) + qtd);
 
@@ -81,7 +84,7 @@ async function calcularBaixas(tx, itens) {
       somar(item.itemId, item.qtd);
       continue;
     }
-    const { rows } = await tx.query('SELECT pecas FROM servicos WHERE id = $1', [item.itemId]);
+    const { rows } = await tx.query('SELECT pecas FROM servicos WHERE id = $1 AND organizacao_id = $2', [item.itemId, organizacaoId]);
     const pecas = rows[0]?.pecas ?? [];
     const lista = Array.isArray(pecas) ? pecas : JSON.parse(pecas || '[]');
     for (const peca of lista) somar(peca.produtoId, Number(peca.qtd) * item.qtd);
@@ -94,30 +97,30 @@ async function calcularBaixas(tx, itens) {
  * Aplica as baixas travando as linhas envolvidas. `sinal` -1 debita, +1 devolve.
  * A trava é o que impede duas vendas simultâneas de furarem o estoque.
  */
-async function moverEstoque(tx, baixas, sinal) {
+async function moverEstoque(tx, baixas, sinal, organizacaoId) {
   for (const { produtoId, qtd } of baixas) {
-    const { rows } = await tx.query('SELECT nome, qtd FROM produtos WHERE id = $1 FOR UPDATE', [produtoId]);
+    const { rows } = await tx.query('SELECT nome, qtd FROM produtos WHERE id = $1 AND organizacao_id = $2 FOR UPDATE', [produtoId, organizacaoId]);
     const produto = rows[0];
     if (!produto) throw erro(400, 'Uma das peças não existe mais no estoque.');
     const novo = Number(produto.qtd) + sinal * qtd;
     if (novo < 0) throw erro(409, `Estoque insuficiente: ${produto.nome} (tem ${produto.qtd}, precisa de ${qtd}).`);
-    await tx.query('UPDATE produtos SET qtd = $1 WHERE id = $2', [novo, produtoId]);
+    await tx.query('UPDATE produtos SET qtd = $1 WHERE id = $2 AND organizacao_id = $3', [novo, produtoId, organizacaoId]);
   }
 }
 
 /* --------------------------------- vendas --------------------------------- */
 
-export function registrarVenda({ tipo, itemId, qtd }) {
+export function registrarVenda({ tipo, itemId, qtd }, organizacaoId) {
   const quantidade = inteiro(qtd, 1) || 1;
   if (!itemId) throw erro(400, 'Selecione um item.');
   if (tipo !== 'produto' && tipo !== 'servico') throw erro(400, 'Tipo de venda inválido.');
 
   return transacao(async (tx) => {
     const itens = [{ tipo, itemId, qtd: quantidade }];
-    const { nome, total, detalhados } = await precificar(tx, itens);
+    const { nome, total, detalhados } = await precificar(tx, itens, organizacaoId);
 
-    await moverEstoque(tx, await calcularBaixas(tx, itens), -1);
-    await lancar(tx, {
+    await moverEstoque(tx, await calcularBaixas(tx, itens, organizacaoId), -1, organizacaoId);
+    await lancar(tx, organizacaoId, {
       desc: `Venda Balcão: ${nome}`,
       valor: total,
       tipo: 'entrada',
@@ -132,21 +135,21 @@ export function registrarVenda({ tipo, itemId, qtd }) {
 }
 
 /** Ajuste de uma unidade pelos botões +/- do estoque. */
-export function ajusteRapido({ produtoId, delta }) {
+export function ajusteRapido({ produtoId, delta }, organizacaoId) {
   const passo = Number(delta) === -1 ? -1 : 1;
 
   return transacao(async (tx) => {
-    const { rows } = await tx.query('SELECT * FROM produtos WHERE id = $1 FOR UPDATE', [produtoId]);
+    const { rows } = await tx.query('SELECT * FROM produtos WHERE id = $1 AND organizacao_id = $2 FOR UPDATE', [produtoId, organizacaoId]);
     const registro = rows[0];
     if (!registro) throw erro(404, 'Produto não encontrado.');
 
     const atual = Number(registro.qtd);
     if (passo === -1 && atual <= 0) throw erro(409, 'Estoque zerado!');
 
-    await tx.query('UPDATE produtos SET qtd = $1 WHERE id = $2', [atual + passo, produtoId]);
+    await tx.query('UPDATE produtos SET qtd = $1 WHERE id = $2 AND organizacao_id = $3', [atual + passo, produtoId, organizacaoId]);
 
     if (passo === 1) {
-      await lancar(tx, {
+      await lancar(tx, organizacaoId, {
         desc: `Reposição Rápida: ${registro.nome}`,
         valor: registro.custo,
         tipo: 'saida',
@@ -154,7 +157,7 @@ export function ajusteRapido({ produtoId, delta }) {
         origemDetalhada: 'Adição manual no estoque (+1)'
       });
     } else {
-      await lancar(tx, {
+      await lancar(tx, organizacaoId, {
         desc: `Venda Avulsa/Rápida: ${registro.nome}`,
         valor: registro.venda,
         tipo: 'entrada',
@@ -170,7 +173,7 @@ export function ajusteRapido({ produtoId, delta }) {
 /* ----------------------------- ordens de serviço --------------------------- */
 
 /** Preenche nome e preço de cada item a partir do banco — o cliente só manda id e quantidade. */
-async function precificar(tx, itens) {
+async function precificar(tx, itens, organizacaoId) {
   if (!Array.isArray(itens) || !itens.length) throw erro(400, 'Adicione ao menos um item.');
 
   const detalhados = [];
@@ -180,7 +183,10 @@ async function precificar(tx, itens) {
     const qtd = inteiro(bruto.qtd, 1) || 1;
 
     if (bruto.tipo === 'produto') {
-      const { rows } = await tx.query('SELECT id, nome, venda FROM produtos WHERE id = $1 AND ativo = TRUE', [bruto.itemId]);
+      const { rows } = await tx.query('SELECT id, nome, venda FROM produtos WHERE id = $1 AND organizacao_id = $2 AND ativo = TRUE', [
+        bruto.itemId,
+        organizacaoId
+      ]);
       const p = rows[0];
       if (!p) throw erro(400, 'Peça não encontrada no estoque.');
       const valor = dinheiro(Number(p.venda) * qtd);
@@ -190,14 +196,17 @@ async function precificar(tx, itens) {
     }
 
     if (bruto.tipo === 'servico') {
-      const { rows } = await tx.query('SELECT id, nome, valor, pecas FROM servicos WHERE id = $1 AND ativo = TRUE', [bruto.itemId]);
+      const { rows } = await tx.query('SELECT id, nome, valor, pecas FROM servicos WHERE id = $1 AND organizacao_id = $2 AND ativo = TRUE', [
+        bruto.itemId,
+        organizacaoId
+      ]);
       const s = rows[0];
       if (!s) throw erro(400, 'Serviço não encontrado.');
 
       const pecas = Array.isArray(s.pecas) ? s.pecas : JSON.parse(s.pecas || '[]');
       let unitario = Number(s.valor);
       for (const peca of pecas) {
-        const { rows: pr } = await tx.query('SELECT venda FROM produtos WHERE id = $1', [peca.produtoId]);
+        const { rows: pr } = await tx.query('SELECT venda FROM produtos WHERE id = $1 AND organizacao_id = $2', [peca.produtoId, organizacaoId]);
         if (pr[0]) unitario += Number(pr[0].venda) * Number(peca.qtd);
       }
 
@@ -215,18 +224,20 @@ async function precificar(tx, itens) {
 
 const STATUS_VALIDOS = ['Pendente', 'Andamento', 'Concluída', 'Cancelada'];
 
-export function salvarOrdem({ id, tipo, clienteId, itens, valorTotal, status, tempoGasto, valorPago }) {
+export function salvarOrdem({ id, tipo, clienteId, itens, valorTotal, status, tempoGasto, valorPago }, organizacaoId) {
   if (tipo !== 'os' && tipo !== 'orcamento') throw erro(400, 'Tipo inválido.');
 
   return transacao(async (tx) => {
-    const existente = id ? (await tx.query('SELECT * FROM ordens WHERE id = $1 FOR UPDATE', [id])).rows[0] : null;
+    const existente = id
+      ? (await tx.query('SELECT * FROM ordens WHERE id = $1 AND organizacao_id = $2 FOR UPDATE', [id, organizacaoId])).rows[0]
+      : null;
     if (id && !existente) throw erro(404, 'Registro não encontrado.');
 
     const dono = existente?.cliente_id ?? clienteId;
-    const { rows: cli } = await tx.query('SELECT nome FROM clientes WHERE id = $1 AND ativo = TRUE', [dono]);
+    const { rows: cli } = await tx.query('SELECT nome FROM clientes WHERE id = $1 AND organizacao_id = $2 AND ativo = TRUE', [dono, organizacaoId]);
     if (!cli[0]) throw erro(400, 'Cliente não encontrado.');
 
-    const { detalhados, total: totalCalculado } = await precificar(tx, itens);
+    const { detalhados, total: totalCalculado } = await precificar(tx, itens, organizacaoId);
     // O total é editável na tela (desconto negociado); sem valor explícito, vale o calculado.
     const total = valorTotal === undefined || valorTotal === null || valorTotal === '' ? totalCalculado : dinheiro(valorTotal);
     if (total < 0) throw erro(400, 'O total não pode ser negativo.');
@@ -234,15 +245,20 @@ export function salvarOrdem({ id, tipo, clienteId, itens, valorTotal, status, te
     if (tipo === 'orcamento') {
       const ordemId = existente?.id ?? novoId();
       if (existente) {
-        await tx.query('UPDATE ordens SET itens = $1, valor_total = $2 WHERE id = $3', [JSON.stringify(detalhados), total, ordemId]);
+        await tx.query('UPDATE ordens SET itens = $1, valor_total = $2 WHERE id = $3 AND organizacao_id = $4', [
+          JSON.stringify(detalhados),
+          total,
+          ordemId,
+          organizacaoId
+        ]);
       } else {
         await tx.query(
-          `INSERT INTO ordens (id, cliente_id, tipo, itens, valor_total, status)
-           VALUES ($1, $2, 'orcamento', $3, $4, 'Pendente')`,
-          [ordemId, dono, JSON.stringify(detalhados), total]
+          `INSERT INTO ordens (id, organizacao_id, cliente_id, tipo, itens, valor_total, status)
+           VALUES ($1, $2, $3, 'orcamento', $4, $5, 'Pendente')`,
+          [ordemId, organizacaoId, dono, JSON.stringify(detalhados), total]
         );
       }
-      const { rows } = await tx.query('SELECT * FROM ordens WHERE id = $1', [ordemId]);
+      const { rows } = await tx.query('SELECT * FROM ordens WHERE id = $1 AND organizacao_id = $2', [ordemId, organizacaoId]);
       return mapear.ordem(rows[0]);
     }
 
@@ -258,13 +274,13 @@ export function salvarOrdem({ id, tipo, clienteId, itens, valorTotal, status, te
     const itensJson = JSON.stringify(detalhados);
 
     if ((statusNovo === 'Andamento' || statusNovo === 'Concluída') && !debitado) {
-      await moverEstoque(tx, await calcularBaixas(tx, detalhados), -1);
+      await moverEstoque(tx, await calcularBaixas(tx, detalhados, organizacaoId), -1, organizacaoId);
       debitado = true;
     } else if (statusNovo === 'Cancelada' && debitado) {
       // Devolve o que foi debitado com base nos itens já gravados, não nos
       // recebidos agora: é o que realmente saiu do estoque.
       const itensGravados = Array.isArray(existente.itens) ? existente.itens : JSON.parse(existente.itens || '[]');
-      await moverEstoque(tx, await calcularBaixas(tx, itensGravados), +1);
+      await moverEstoque(tx, await calcularBaixas(tx, itensGravados, organizacaoId), +1, organizacaoId);
       debitado = false;
     }
 
@@ -274,7 +290,7 @@ export function salvarOrdem({ id, tipo, clienteId, itens, valorTotal, status, te
 
     if (fechandoAgora && pagoAgora > 0) {
       pago += pagoAgora;
-      await lancar(tx, {
+      await lancar(tx, organizacaoId, {
         desc: `Fechamento OS #${ordemId.slice(-4)}`,
         valor: pagoAgora,
         tipo: 'entrada',
@@ -288,54 +304,60 @@ export function salvarOrdem({ id, tipo, clienteId, itens, valorTotal, status, te
     if (existente) {
       await tx.query(
         `UPDATE ordens SET itens = $1, valor_total = $2, status = $3, estoque_debitado = $4, valor_pago = $5, tempo_gasto = $6
-         WHERE id = $7`,
-        [itensJson, total, statusNovo, debitado, pago, inteiro(tempoGasto), ordemId]
+         WHERE id = $7 AND organizacao_id = $8`,
+        [itensJson, total, statusNovo, debitado, pago, inteiro(tempoGasto), ordemId, organizacaoId]
       );
     } else {
       await tx.query(
-        `INSERT INTO ordens (id, cliente_id, tipo, itens, valor_total, status, estoque_debitado, valor_pago, tempo_gasto)
-         VALUES ($1, $2, 'os', $3, $4, $5, $6, $7, $8)`,
-        [ordemId, dono, itensJson, total, statusNovo, debitado, pago, inteiro(tempoGasto)]
+        `INSERT INTO ordens (id, organizacao_id, cliente_id, tipo, itens, valor_total, status, estoque_debitado, valor_pago, tempo_gasto)
+         VALUES ($1, $2, $3, 'os', $4, $5, $6, $7, $8, $9)`,
+        [ordemId, organizacaoId, dono, itensJson, total, statusNovo, debitado, pago, inteiro(tempoGasto)]
       );
     }
 
-    const { rows } = await tx.query('SELECT * FROM ordens WHERE id = $1', [ordemId]);
+    const { rows } = await tx.query('SELECT * FROM ordens WHERE id = $1 AND organizacao_id = $2', [ordemId, organizacaoId]);
     return mapear.ordem(rows[0]);
   });
 }
 
-export function aprovarOrcamento(orcamentoId) {
+export function aprovarOrcamento(orcamentoId, organizacaoId) {
   return transacao(async (tx) => {
-    const { rows } = await tx.query("SELECT * FROM ordens WHERE id = $1 AND tipo = 'orcamento'", [orcamentoId]);
+    const { rows } = await tx.query("SELECT * FROM ordens WHERE id = $1 AND organizacao_id = $2 AND tipo = 'orcamento'", [
+      orcamentoId,
+      organizacaoId
+    ]);
     const orcamento = rows[0];
     if (!orcamento) throw erro(404, 'Orçamento não encontrado.');
 
     const id = novoId();
     const itens = Array.isArray(orcamento.itens) ? orcamento.itens : JSON.parse(orcamento.itens || '[]');
     await tx.query(
-      `INSERT INTO ordens (id, cliente_id, tipo, itens, valor_total, status)
-       VALUES ($1, $2, 'os', $3, $4, 'Pendente')`,
-      [id, orcamento.cliente_id, JSON.stringify(itens), orcamento.valor_total]
+      `INSERT INTO ordens (id, organizacao_id, cliente_id, tipo, itens, valor_total, status)
+       VALUES ($1, $2, $3, 'os', $4, $5, 'Pendente')`,
+      [id, organizacaoId, orcamento.cliente_id, JSON.stringify(itens), orcamento.valor_total]
     );
 
-    const { rows: nova } = await tx.query('SELECT * FROM ordens WHERE id = $1', [id]);
+    const { rows: nova } = await tx.query('SELECT * FROM ordens WHERE id = $1 AND organizacao_id = $2', [id, organizacaoId]);
     return mapear.ordem(nova[0]);
   });
 }
 
-export function quitarPendencia(osId) {
+export function quitarPendencia(osId, organizacaoId) {
   return transacao(async (tx) => {
-    const { rows } = await tx.query("SELECT * FROM ordens WHERE id = $1 AND tipo = 'os' FOR UPDATE", [osId]);
+    const { rows } = await tx.query("SELECT * FROM ordens WHERE id = $1 AND organizacao_id = $2 AND tipo = 'os' FOR UPDATE", [
+      osId,
+      organizacaoId
+    ]);
     const os = rows[0];
     if (!os) throw erro(404, 'O.S. não encontrada.');
 
     const restante = dinheiro(Number(os.valor_total) - Number(os.valor_pago));
     if (restante <= 0) throw erro(409, 'Esta O.S. já está quitada.');
 
-    await tx.query('UPDATE ordens SET valor_pago = valor_total WHERE id = $1', [osId]);
+    await tx.query('UPDATE ordens SET valor_pago = valor_total WHERE id = $1 AND organizacao_id = $2', [osId, organizacaoId]);
 
-    const { rows: cli } = await tx.query('SELECT nome FROM clientes WHERE id = $1', [os.cliente_id]);
-    await lancar(tx, {
+    const { rows: cli } = await tx.query('SELECT nome FROM clientes WHERE id = $1 AND organizacao_id = $2', [os.cliente_id, organizacaoId]);
+    await lancar(tx, organizacaoId, {
       desc: `Quitação de pendência (OS #${String(osId).slice(-4)})`,
       valor: restante,
       tipo: 'entrada',
@@ -352,10 +374,11 @@ export function quitarPendencia(osId) {
 const TABELAS_DADOS = ['transacoes', 'ordens', 'servicos', 'produtos', 'clientes', 'fornecedores'];
 
 /**
- * Substitui os dados pelo conteúdo do backup. Aceita tanto o formato exportado
- * por este servidor quanto o do app antigo (v1), que tem a mesma forma.
+ * Substitui os dados da oficina pelo conteúdo do backup. Aceita tanto o
+ * formato exportado por este servidor quanto o do app antigo (v1), que tem a
+ * mesma forma.
  */
-export function restaurarBackup(dados) {
+export function restaurarBackup(dados, organizacaoId) {
   const listas = {
     produtos: dados?.produtos ?? [],
     servicos: dados?.servicos ?? [],
@@ -375,11 +398,12 @@ export function restaurarBackup(dados) {
   }
 
   return transacao(async (tx) => {
-    for (const tabela of TABELAS_DADOS) await tx.query(`DELETE FROM ${tabela}`);
+    for (const tabela of TABELAS_DADOS) await tx.query(`DELETE FROM ${tabela} WHERE organizacao_id = $1`, [organizacaoId]);
 
     for (const c of listas.clientes) {
-      await tx.query('INSERT INTO clientes (id, nome, tel, placa, moto, ativo) VALUES ($1,$2,$3,$4,$5,$6)', [
+      await tx.query('INSERT INTO clientes (id, organizacao_id, nome, tel, placa, moto, ativo) VALUES ($1,$2,$3,$4,$5,$6,$7)', [
         String(c.id),
+        organizacaoId,
         String(c.nome ?? 'Sem nome'),
         String(c.tel ?? ''),
         String(c.placa ?? ''),
@@ -390,10 +414,11 @@ export function restaurarBackup(dados) {
 
     for (const p of listas.produtos) {
       await tx.query(
-        `INSERT INTO produtos (id, nome, categoria, marca, codigo_barras, custo, venda, qtd, minimo, ativo)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        `INSERT INTO produtos (id, organizacao_id, nome, categoria, marca, codigo_barras, custo, venda, qtd, minimo, ativo)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
         [
           String(p.id),
+          organizacaoId,
           String(p.nome ?? 'Sem nome'),
           String(p.categoria ?? ''),
           String(p.marca ?? ''),
@@ -408,8 +433,9 @@ export function restaurarBackup(dados) {
     }
 
     for (const s of listas.servicos) {
-      await tx.query('INSERT INTO servicos (id, nome, valor, pecas, ativo) VALUES ($1,$2,$3,$4,$5)', [
+      await tx.query('INSERT INTO servicos (id, organizacao_id, nome, valor, pecas, ativo) VALUES ($1,$2,$3,$4,$5,$6)', [
         String(s.id),
+        organizacaoId,
         String(s.nome ?? 'Sem nome'),
         dinheiro(s.valor),
         JSON.stringify(s.pecas ?? []),
@@ -418,8 +444,9 @@ export function restaurarBackup(dados) {
     }
 
     for (const f of listas.fornecedores) {
-      await tx.query('INSERT INTO fornecedores (id, nome, cnpj, tel, vendedor, obs, ativo) VALUES ($1,$2,$3,$4,$5,$6,$7)', [
+      await tx.query('INSERT INTO fornecedores (id, organizacao_id, nome, cnpj, tel, vendedor, obs, ativo) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [
         String(f.id),
+        organizacaoId,
         String(f.nome ?? 'Sem nome'),
         String(f.cnpj ?? ''),
         String(f.tel ?? ''),
@@ -434,10 +461,11 @@ export function restaurarBackup(dados) {
       // Uma OS órfã (cliente ausente no backup) violaria a chave estrangeira.
       if (!clientesValidos.has(String(o.clienteId))) return;
       await tx.query(
-        `INSERT INTO ordens (id, cliente_id, tipo, data, itens, valor_total, status, estoque_debitado, valor_pago, tempo_gasto)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        `INSERT INTO ordens (id, organizacao_id, cliente_id, tipo, data, itens, valor_total, status, estoque_debitado, valor_pago, tempo_gasto)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
         [
           String(o.id),
+          organizacaoId,
           String(o.clienteId),
           tipo,
           o.data ? new Date(o.data) : new Date(),
@@ -456,10 +484,11 @@ export function restaurarBackup(dados) {
 
     for (const t of listas.transacoes) {
       await tx.query(
-        `INSERT INTO transacoes (id, descricao, valor, tipo, data, cliente_nome, origem_detalhada, origem, itens)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        `INSERT INTO transacoes (id, organizacao_id, descricao, valor, tipo, data, cliente_nome, origem_detalhada, origem, itens)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         [
           String(t.id),
+          organizacaoId,
           String(t.desc ?? 'Sem descrição'),
           dinheiro(t.valor),
           t.tipo === 'entrada' ? 'entrada' : 'saida',
@@ -479,7 +508,7 @@ export function restaurarBackup(dados) {
 
 /* ------------------------------ nota fiscal -------------------------------- */
 
-export function entradaPorNota({ fornecedor, cnpj, numero, total, itens, cadastrarFornecedor, margem }) {
+export function entradaPorNota({ fornecedor, cnpj, numero, total, itens, cadastrarFornecedor, margem }, organizacaoId) {
   const selecionados = (itens ?? []).filter((i) => i?.nome);
   if (!selecionados.length) throw erro(400, 'Nenhum item selecionado.');
 
@@ -494,28 +523,40 @@ export function entradaPorNota({ fornecedor, cnpj, numero, total, itens, cadastr
       const custo = dinheiro(item.custo ?? item.valorUnitario);
 
       if (item.produtoId) {
-        const { rows } = await tx.query('SELECT nome, qtd FROM produtos WHERE id = $1 FOR UPDATE', [item.produtoId]);
+        const { rows } = await tx.query('SELECT nome, qtd FROM produtos WHERE id = $1 AND organizacao_id = $2 FOR UPDATE', [
+          item.produtoId,
+          organizacaoId
+        ]);
         if (!rows[0]) throw erro(400, 'Peça vinculada não existe mais.');
-        await tx.query('UPDATE produtos SET qtd = qtd + $1, custo = CASE WHEN $2 > 0 THEN $2 ELSE custo END WHERE id = $3', [
+        await tx.query('UPDATE produtos SET qtd = qtd + $1, custo = CASE WHEN $2 > 0 THEN $2 ELSE custo END WHERE id = $3 AND organizacao_id = $4', [
           qtd,
           custo,
-          item.produtoId
+          item.produtoId,
+          organizacaoId
         ]);
         aplicados.push({ nome: rows[0].nome, qtd, novo: false });
       } else {
-        await tx.query(
-          `INSERT INTO produtos (id, nome, custo, venda, qtd, minimo) VALUES ($1, $2, $3, $4, $5, 2)`,
-          [novoId(), item.nome, custo, dinheiro(custo * multiplicador), qtd]
-        );
+        await tx.query(`INSERT INTO produtos (id, organizacao_id, nome, custo, venda, qtd, minimo) VALUES ($1, $2, $3, $4, $5, $6, 2)`, [
+          novoId(),
+          organizacaoId,
+          item.nome,
+          custo,
+          dinheiro(custo * multiplicador),
+          qtd
+        ]);
         aplicados.push({ nome: item.nome, qtd, novo: true });
       }
     }
 
     if (cadastrarFornecedor) {
-      const { rows } = await tx.query('SELECT id FROM fornecedores WHERE lower(nome) = lower($1) AND ativo = TRUE', [nomeFornecedor]);
+      const { rows } = await tx.query('SELECT id FROM fornecedores WHERE organizacao_id = $1 AND lower(nome) = lower($2) AND ativo = TRUE', [
+        organizacaoId,
+        nomeFornecedor
+      ]);
       if (!rows[0]) {
-        await tx.query('INSERT INTO fornecedores (id, nome, cnpj, obs) VALUES ($1, $2, $3, $4)', [
+        await tx.query('INSERT INTO fornecedores (id, organizacao_id, nome, cnpj, obs) VALUES ($1, $2, $3, $4, $5)', [
           novoId(),
+          organizacaoId,
           nomeFornecedor,
           String(cnpj ?? ''),
           `Cadastrado pela leitura da nota ${numero ?? ''}`.trim()
@@ -527,7 +568,7 @@ export function entradaPorNota({ fornecedor, cnpj, numero, total, itens, cadastr
     // compra várias vezes no caixa.
     const valorNota = dinheiro(total);
     if (valorNota > 0) {
-      await lancar(tx, {
+      await lancar(tx, organizacaoId, {
         desc: `Compra de peças: ${nomeFornecedor}`,
         valor: valorNota,
         tipo: 'saida',

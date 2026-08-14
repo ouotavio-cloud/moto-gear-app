@@ -9,6 +9,17 @@ Listas aninhadas (peças de um serviço, itens de uma OS) ficam em **JSONB**: s�
 sempre lidas junto com o registro pai e nunca consultadas isoladamente, então
 normalizar traria junções sem ganho.
 
+Multi-oficina: `produtos`, `servicos`, `clientes`, `fornecedores`, `ordens` e
+`transacoes` têm todos uma coluna `organizacao_id` (FK para `organizacoes`).
+Toda consulta do servidor filtra por ela — é o que isola os dados de uma
+oficina das demais. Não aparece no formato que o app recebe (`mapeadores.js`
+não a expõe).
+
+## `organizacoes`
+
+Uma oficina. `nome`, `codigo_convite` (único, usado por funcionários pra
+entrar), `criado_em`.
+
 ## `produtos`
 
 | Coluna | Tipo | No app | Observação |
@@ -79,8 +90,10 @@ gravado é saldo que uma hora diverge.
 
 ## `usuarios`
 
-`usuario`, `senha_hash` (scrypt no formato `sal:hash`). O primeiro é criado no
-boot inicial a partir de `ADMIN_USUARIO`/`ADMIN_SENHA`.
+`usuario`, `senha_hash` (scrypt no formato `sal:hash`), `organizacao_id`
+(a oficina dele) e `papel` (`chefe` ou `funcionario`). O primeiro usuário é
+criado no boot inicial a partir de `ADMIN_USUARIO`/`ADMIN_SENHA` — junto com
+ele nasce a primeira organização, e ele vira o chefe dela.
 
 ## Compatibilidade com a versão 1
 
