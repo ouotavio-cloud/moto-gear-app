@@ -1,0 +1,22 @@
+node_modules/
+
+# Build da interface e do Android
+app/android/build/
+app/android/app/build/
+app/android/.gradle/
+app/android/local.properties
+app/android/capacitor-cordova-android-plugins/
+app/android/app/src/main/assets/public/
+app/android/app/src/main/assets/capacitor.config.json
+app/android/app/src/main/assets/capacitor.plugins.json
+
+# Resultados de teste
+app/test-results/
+app/playwright-report/
+app/blob-report/
+
+# Chave de assinatura e segredos — nunca versionar
+*.keystore
+*.jks
+.env
+.env.*

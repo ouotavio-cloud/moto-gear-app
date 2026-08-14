@@ -1,86 +1,112 @@
 # Arquitetura
 
-## Visão geral
+## O desenho em uma frase
 
-O Moto Gear App **não tem backend**. É um SPA (single page app) em JavaScript
-puro, embrulhado pelo [Capacitor](https://capacitorjs.com/) para virar um app
-Android instalável. Todo o app — HTML, CSS e JS — vive em um único arquivo:
-`app/www/index.html` (~1240 linhas).
+Um servidor Node com Postgres guarda e calcula tudo; a mesma interface web é
+servida por ele no navegador e empacotada num APK Android.
 
-- **appId**: `com.appteste.demo`
-- **appName**: `MOTO GEAR APP`
-- **webDir**: `www` (é isso que o Capacitor empacota dentro do APK)
+```
+┌─────────────────┐        HTTPS + JWT        ┌──────────────────────┐
+│  APK Android    │ ────────────────────────► │                      │
+│  (WebView)      │                           │   server/ (Express)  │
+└─────────────────┘                           │                      │
+                                              │  · regras de negócio │
+┌─────────────────┐        mesma origem       │  · leitura de nota   │
+│  Navegador      │ ────────────────────────► │  · serve a interface │
+└─────────────────┘                           └──────────┬───────────┘
+                                                         │ SQL
+                                                  ┌──────▼───────┐
+                                                  │  Postgres    │
+                                                  └──────────────┘
+```
 
-## Stack
+## Por que as regras vivem no servidor
 
-| Camada | Tecnologia | Como é carregado |
-|---|---|---|
-| UI/estilo | Tailwind CSS | CDN (`cdn.tailwindcss.com`) — sem build step, config inline no `<script>` |
-| Ícones | Font Awesome 6 | CDN (`cdnjs.cloudflare.com`) |
-| Import de planilha | SheetJS (`xlsx`) | CDN (`cdn.jsdelivr.net`) |
-| Shell nativo | Capacitor | `capacitor-bridge-bundle.js` (empacotado no APK) |
-| Lógica do app | JavaScript vanilla | inline, dentro do próprio `index.html` |
+Na versão 1 o celular calculava tudo. Isso funciona com uma pessoa usando um
+aparelho e quebra na hora que aparece a segunda: dois celulares vendendo a
+última peça ao mesmo tempo dariam baixa duas vezes, e o estoque ficaria
+negativo sem ninguém perceber.
 
-Como CSS/ícones/xlsx vêm de CDN, **o app precisa de internet ao menos no
-primeiro carregamento** (o WebView do Android cacheia depois). Isso explica a
-permissão `android.permission.INTERNET` no `AndroidManifest.xml` — é a única
-permissão de rede do app; não existe nenhuma chamada a API/servidor próprio.
+Agora, toda operação que mexe em estoque ou caixa roda dentro de uma transação
+de banco, com `SELECT ... FOR UPDATE` nas peças envolvidas. Quem chegar em
+segundo lugar espera e recebe um "estoque insuficiente" honesto em vez de furar
+o controle.
 
-## Plugins nativos (Capacitor)
+O app manda intenção (`vender 3 desta peça`), nunca resultado (`o estoque agora
+é 5`). Os preços também são lidos do banco na hora de fechar a conta — o que a
+tela mostra é conveniência, não a fonte do valor cobrado.
 
-Declarados em `app/capacitor.plugins.json`:
+## As partes
 
-- **`@capacitor/preferences`** — armazenamento nativo chave/valor (persistência principal no Android)
-- **`@capacitor/filesystem`** — grava arquivos temporários (backup/CSV) na pasta de cache do app
-- **`@capacitor/share`** — abre o menu nativo de compartilhamento para exportar backup/CSV
+### `server/src`
 
-## Persistência de dados (o coração do app)
+| Arquivo | Responsabilidade |
+|---|---|
+| `index.js` | Sobe o servidor, conecta o banco, cria o usuário inicial |
+| `app.js` | Monta o Express: `/api` e os arquivos da interface |
+| `db.js` | Conexão e migração. Postgres em produção, PGlite em teste |
+| `schema.sql` | As tabelas |
+| `auth.js` | Senha com scrypt e sessão por JWT |
+| `negocio.js` | Regras: estoque, vendas, OS, nota fiscal, backup |
+| `cadastros.js` | CRUD de peças, serviços, clientes e fornecedores |
+| `mapeadores.js` | Linha do banco → formato que o app consome |
+| `ia.js` | Leitura da foto da nota fiscal |
+| `rotas.js` | Endpoints |
 
-Não existe banco de dados remoto. Cada "tabela" de `db` (ver
-`docs/MODELO_DE_DADOS.md`) é salva **em triplicado**, por robustez, via
-`saveDB(key)`:
+### `app/www/js`
 
-1. `CapacitorPreferences` (nativo, só existe rodando como app Android)
-2. `localStorage` (sempre disponível, inclusive no navegador)
-3. `IndexedDB` (banco `MotoGearDB`, object store `store`)
+| Arquivo | Responsabilidade |
+|---|---|
+| `api.js` | Cliente HTTP, sessão e o espelho `db` do estado do servidor |
+| `main.js` | Login, registro dos renderizadores, `window.App` |
+| `ui.js` | Toast, modais, navegação, formatação |
+| `estoque.js`, `servicos.js`, `caixa.js`, `clientes.js`, `os.js`, `fornecedores.js` | Uma tela cada |
+| `dashboard.js`, `analises.js` | Telas só de leitura, calculadas do espelho |
+| `notafiscal.js` | Foto → conferência → entrada no estoque |
+| `barcode.js` | Leitor de código de barras |
+| `importar.js`, `backup.js` | Planilha e backup |
+| `files.js` | Compartilhar/baixar arquivo e comprimir imagem |
 
-Na leitura (`loadDB()`), a ordem de prioridade é a mesma: tenta
-`CapacitorPreferences` → `localStorage` → `IndexedDB`, usando o primeiro valor
-não vazio encontrado, e sempre re-sincroniza o `localStorage` com o que achou.
+O HTML chama as funções por `App.algumaCoisa()`; `main.js` é quem publica esse
+objeto. Assim os `onclick` continuam legíveis e as funções seguem em módulos.
 
-Cada chave é prefixada com `motogear_` (ex.: `motogear_produtos`,
-`motogear_transacoes`).
+### Fluxo de uma operação
 
-**Por quê assim:** o app roda tanto dentro do WebView Android (onde
-`CapacitorPreferences` é confiável) quanto pode ser aberto direto num
-navegador para teste (onde só `localStorage`/`IndexedDB` existem). A
-redundância evita perda de dados se uma das três camadas falhar ou não
-existir no ambiente.
+1. A tela chama `req('POST', '/vendas', { ... })`.
+2. O servidor valida, aplica dentro de uma transação e responde.
+3. `acao()` recarrega `GET /estado` e redesenha tudo.
 
-## Backup / Restauração
+Recarregar o estado inteiro depois de cada escrita é deliberado: o volume de uma
+oficina é pequeno (alguns milhares de registros no pior caso) e isso elimina a
+classe inteira de bugs em que uma tela mostra um número velho.
 
-- **Backup** (`fazerBackup()`): serializa todas as 7 entidades em um único
-  JSON e chama `baixarOuCompartilhar()`.
-- **Restauração** (`restaurarBackup()`): lê um arquivo `.json`/`.motogear`/`.txt`,
-  substitui os dados atuais. Também aceita o **formato legado em Base64**
-  (versões antigas do app codificavam o backup com `atob`), detectado quando o
-  conteúdo não começa com `{`.
+## Sessão e segurança
 
-## Compartilhar/baixar arquivo (`baixarOuCompartilhar`)
+- Senha guardada com **scrypt** e sal por usuário.
+- Sessão por **JWT** de 30 dias no cabeçalho `Authorization`. Como não é cookie,
+  não existe superfície para requisição forjada de outro site — por isso o CORS
+  pode ser liberado para a origem do app Android.
+- A **chave da IA fica no servidor**. Se viajasse dentro do APK, qualquer pessoa
+  poderia extraí-la do arquivo e gastar a cota da oficina.
+- O backup **não inclui** credenciais: ele costuma circular por WhatsApp.
 
-Função central usada tanto pelo backup quanto pela exportação CSV do caixa:
+## Interface sem etapa de build
 
-1. Se `CapacitorFilesystem`/`CapacitorShare` existem (rodando no Android):
-   grava o arquivo em `Directory.Cache` e abre o menu nativo de
-   compartilhar/salvar.
-2. Senão, tenta a Web Share API (`navigator.share`) com o arquivo.
-3. Senão, cai para download direto via link `<a download>` (navegador desktop).
+A interface não usa bundler. São módulos ES carregados direto pelo navegador,
+com Tailwind compilado uma vez para `www/css/app.css` e as bibliotecas de
+terceiros (ícones e leitor de planilha) copiadas em `www/vendor/`.
 
-## Sem processo de build
+Isso é escolha, não preguiça: nada de CDN em runtime (o app abre igual com
+internet ruim), nada de `node_modules` no APK, e qualquer pessoa consegue abrir
+um arquivo e entender o que ele faz sem atravessar uma cadeia de build.
 
-Não há `package.json`, bundler ou transpilação. Editar o app é editar
-`app/www/index.html` diretamente. Isso é intencional na forma como o app foi
-originalmente gerado (provavelmente por uma ferramenta no-code/app-builder que
-empacota HTML puro com Capacitor) — qualquer refatoração para um projeto
-Capacitor "completo" (com `npm`, `npx cap sync`, etc.) é uma decisão a ser
-tomada conscientemente, não algo já em andamento.
+O preço é não ter checagem de tipos nem minificação. Para o tamanho deste
+projeto, é troca vantajosa.
+
+## O que muda quando não tem internet
+
+O app **precisa de conexão**. É a consequência aceita ao mover a verdade para o
+servidor: os dados ficam a salvo de perder o celular e podem ser abertos de
+qualquer aparelho, mas sem rede o app não abre. Se um dia isso incomodar, o
+caminho é cache de leitura no aparelho com fila de escrita — trabalho real, com
+conflitos para resolver, e por isso não foi feito por antecipação.

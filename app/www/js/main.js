@@ -1,0 +1,177 @@
+/**
+ * Ponto de entrada: cuida da sessão, registra os renderizadores de cada aba e
+ * publica em `window.App` as funções chamadas pelos `onclick` do HTML.
+ */
+
+import { carregarEstado, entrar, temSessao, servidor, quandoDeslogar } from './api.js';
+import { setRenderers, renderAll, switchTab, fecharModal, showToast, el, setVal, txt, carregando, pararCarregando } from './ui.js';
+import * as estoque from './estoque.js';
+import * as servicos from './servicos.js';
+import * as caixa from './caixa.js';
+import * as clientes from './clientes.js';
+import * as os from './os.js';
+import * as analises from './analises.js';
+import * as fornecedores from './fornecedores.js';
+import * as backup from './backup.js';
+import * as importar from './importar.js';
+import * as barcode from './barcode.js';
+import * as notafiscal from './notafiscal.js';
+import * as configuracoes from './config.js';
+import { renderDashboard } from './dashboard.js';
+
+/* --------------------------------- sessão --------------------------------- */
+
+function mostrarLogin() {
+  setVal('login-servidor', servidor());
+  setVal('login-senha', '');
+  el('tela-login').classList.add('active');
+  el('login-erro').textContent = '';
+  document.body.dataset.logado = 'nao';
+}
+
+function esconderLogin() {
+  el('tela-login').classList.remove('active');
+  document.body.dataset.logado = 'sim';
+}
+
+async function fazerLogin() {
+  const url = txt('login-servidor');
+  const usuario = txt('login-usuario');
+  const senha = el('login-senha').value;
+
+  if (!usuario || !senha) {
+    el('login-erro').textContent = 'Informe usuário e senha.';
+    return;
+  }
+
+  carregando('Entrando...');
+  try {
+    await entrar({ url, usuario, senha });
+    await carregarEstado();
+    esconderLogin();
+    renderAll();
+    showToast('Bem-vindo!');
+  } catch (err) {
+    el('login-erro').textContent = err.message;
+  } finally {
+    pararCarregando();
+  }
+}
+
+/* ------------------------------- funções da UI ---------------------------- */
+
+const App = {
+  switchTab,
+  fecharModal,
+  fazerLogin,
+
+  // Estoque
+  renderEstoque: estoque.renderEstoque,
+  abrirModalProduto: () => estoque.abrirModalProduto(),
+  editarProduto: estoque.editarProduto,
+  salvarProduto: estoque.salvarProduto,
+  excluirProduto: estoque.excluirProduto,
+  addEstoqueRapido: estoque.addEstoqueRapido,
+  removeEstoqueRapido: estoque.removeEstoqueRapido,
+
+  // Serviços
+  renderServicos: servicos.renderServicos,
+  abrirModalServico: servicos.abrirModalServico,
+  editarServico: servicos.editarServico,
+  salvarServico: servicos.salvarServico,
+  excluirServico: servicos.excluirServico,
+  addPecaServico: servicos.addPecaServico,
+  remPecaServico: servicos.remPecaServico,
+
+  // Caixa
+  renderCaixa: caixa.renderCaixa,
+  abrirModalVenda: caixa.abrirModalVenda,
+  mudarTipoVenda: caixa.mudarTipoVenda,
+  salvarVenda: caixa.salvarVenda,
+  abrirModalDespesa: caixa.abrirModalDespesa,
+  salvarDespesa: caixa.salvarDespesa,
+  exportarCaixaCSV: caixa.exportarCaixaCSV,
+  limparCaixa: caixa.limparCaixa,
+
+  // Clientes e OS
+  renderClientes: clientes.renderClientes,
+  abrirModalCliente: clientes.abrirModalCliente,
+  editarCliente: clientes.editarCliente,
+  salvarCliente: clientes.salvarCliente,
+  excluirCliente: clientes.excluirCliente,
+  abrirPerfilCliente: clientes.abrirPerfilCliente,
+  setPCTab: clientes.setPCTab,
+  quitarPendencia: clientes.quitarPendencia,
+  abrirCentralOS: os.abrirCentralOS,
+  abrirOSDaCentral: clientes.abrirOSDaCentral,
+  abrirModalOS: os.abrirModalOS,
+  abrirModalOrcamento: os.abrirModalOrcamento,
+  addItemOS: os.addItemOS,
+  remItemOS: os.remItemOS,
+  mudarTipoItemOS: os.mudarTipoItemOS,
+  salvarOS: os.salvarOS,
+  editarOS: os.editarOS,
+  verificarStatusOS: os.verificarStatusOS,
+  transformarOrcamentoEmOS: os.transformarOrcamentoEmOS,
+
+  // Análises e fornecedores
+  setAnaliseTab: analises.setAnaliseTab,
+  renderFornecedores: fornecedores.renderFornecedores,
+  abrirModalFornecedor: fornecedores.abrirModalFornecedor,
+  editarFornecedor: fornecedores.editarFornecedor,
+  salvarFornecedor: fornecedores.salvarFornecedor,
+  excluirFornecedor: fornecedores.excluirFornecedor,
+
+  // Arquivos e configurações
+  fazerBackup: backup.fazerBackup,
+  restaurarBackup: backup.restaurarBackup,
+  importarPlanilha: importar.importarPlanilha,
+  abrirConfig: configuracoes.abrirConfig,
+  salvarPreferencias: configuracoes.salvarPreferencias,
+  trocarSenha: configuracoes.trocarSenha,
+  sairDaConta: configuracoes.sairDaConta,
+
+  // Código de barras e nota fiscal
+  escanearParaProduto: barcode.escanearParaProduto,
+  escanearNoEstoque: barcode.escanearNoEstoque,
+  abrirLeitorNota: notafiscal.abrirLeitorNota,
+  processarFotoNota: notafiscal.processarFotoNota,
+  confirmarNota: notafiscal.confirmarNota,
+  cancelarNota: notafiscal.cancelarNota
+};
+
+window.App = App;
+
+setRenderers({
+  inicio: renderDashboard,
+  estoque: estoque.renderEstoque,
+  servicos: servicos.renderServicos,
+  caixa: caixa.renderCaixa,
+  clientes: clientes.renderClientes,
+  fornecedores: fornecedores.renderFornecedores,
+  analises: analises.renderAnalises,
+  perfil: clientes.renderPerfil
+});
+
+quandoDeslogar(mostrarLogin);
+
+async function iniciar() {
+  if (temSessao()) {
+    try {
+      await carregarEstado();
+      esconderLogin();
+      renderAll();
+    } catch (err) {
+      // Token expirado já cai no fluxo de logout; aqui sobra falha de rede.
+      console.error('Não consegui carregar o estado inicial', err);
+      mostrarLogin();
+      el('login-erro').textContent = err.message;
+    }
+  } else {
+    mostrarLogin();
+  }
+
+  document.body.dataset.pronto = 'sim';
+}
+
+iniciar();

@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  testes:
+    name: Testes (API + app)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            app/package-lock.json
+
+      - name: Instalar dependências do servidor
+        working-directory: server
+        run: npm ci
+
+      - name: Testes da API
+        working-directory: server
+        run: npm test
+
+      - name: Instalar dependências do app
+        working-directory: app
+        run: npm ci
+
+      - name: Compilar o CSS
+        working-directory: app
+        run: npm run build:css
+
+      # A interface é servida pelo próprio backend, então o E2E sobe o servidor
+      # de verdade (com banco em memória) e exercita a mesma pilha do Render.
+      - name: Instalar navegador
+        working-directory: app
+        run: npx playwright install --with-deps chromium
+
+      - name: Testes de ponta a ponta
+        working-directory: app
+        run: npx playwright test
+
+      - name: Guardar relatório em caso de falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: app/playwright-report/
+          retention-days: 7
+
+  apk:
+    name: APK Android
+    runs-on: ubuntu-latest
+    needs: testes
+    env:
+      # O contexto `secrets` não pode ser usado direto num `if:`, então a
+      # presença da chave vira uma variável de ambiente aqui.
+      TEM_CHAVE: ${{ secrets.MOTOGEAR_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Instalar dependências do app
+        working-directory: app
+        run: npm ci
+
+      - name: Compilar o CSS
+        working-directory: app
+        run: npm run build:css
+
+      - name: Apontar o app para o servidor
+        working-directory: app
+        env:
+          MOTOGEAR_SERVIDOR: ${{ vars.MOTOGEAR_SERVIDOR }}
+        run: node scripts/definir-servidor.mjs
+
+      - name: Sincronizar o projeto Android
+        working-directory: app
+        run: npx cap sync android
+
+      # Sem a chave nos segredos, o APK sai sem assinatura: serve para conferir
+      # que compila, mas o Android não instala. Cadastre MOTOGEAR_KEYSTORE_BASE64
+      # e MOTOGEAR_KEYSTORE_SENHA para gerar o APK instalável.
+      - name: Restaurar a chave de assinatura
+        if: env.TEM_CHAVE == 'true'
+        run: echo "${{ secrets.MOTOGEAR_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/motogear.keystore"
+
+      - name: Gerar o APK
+        working-directory: app/android
+        env:
+          MOTOGEAR_KEYSTORE: ${{ env.TEM_CHAVE == 'true' && format('{0}/motogear.keystore', runner.temp) || '' }}
+          MOTOGEAR_KEYSTORE_SENHA: ${{ secrets.MOTOGEAR_KEYSTORE_SENHA }}
+          MOTOGEAR_KEY_ALIAS: motogear
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Publicar o APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: moto-gear-apk
+          path: app/android/app/build/outputs/apk/release/*.apk
+          retention-days: 30

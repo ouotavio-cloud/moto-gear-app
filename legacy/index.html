@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Moto Gear Oficina</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="capacitor-bridge-bundle.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gear: {
+                            900: '#0f172a',
+                            800: '#1e293b',
+                            700: '#334155',
+                            orange: '#f97316',
+                            orangedark: '#ea580c'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; padding-bottom: 80px; font-family: system-ui, -apple-system, sans-serif; }
+        .tab-content { display: none; padding: 16px; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #1e293b; border-top: 1px solid #334155; display: flex; justify-content: space-around; padding-bottom: env(safe-area-inset-bottom); z-index: 50; }
+        .nav-item { flex: 1; padding: 12px 0; text-align: center; color: #94a3b8; font-size: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s; }
+        .nav-item i { font-size: 20px; }
+        .nav-item.active { color: #f97316; }
+        .nav-item.active i { transform: scale(1.1); }
+        
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); z-index: 100; align-items: flex-end; justify-content: center; }
+        .modal.active { display: flex; animation: bgFade 0.3s; }
+        .modal-content { background: #1e293b; width: 100%; max-height: 90vh; border-radius: 24px 24px 0 0; padding: 24px; overflow-y: auto; transform: translateY(100%); animation: slideUp 0.3s forwards; }
+        @keyframes slideUp { to { transform: translateY(0); } }
+        @keyframes bgFade { from { opacity: 0; } to { opacity: 1; } }
+        
+        input, select, textarea { background: #334155; border: 1px solid #475569; color: white; border-radius: 12px; padding: 14px; width: 100%; font-size: 16px; margin-top: 6px; margin-bottom: 12px; outline: none; }
+        input:focus, select:focus, textarea:focus { border-color: #f97316; box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2); }
+        label { font-size: 12px; color: #cbd5e1; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        .btn-primary { background: linear-gradient(135deg, #f97316, #ea580c); color: white; font-weight: bold; padding: 16px; border-radius: 16px; text-align: center; box-shadow: 0 4px 14px rgba(249, 115, 22, 0.3); transition: transform 0.1s; width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 16px;}
+        .btn-primary:active { transform: scale(0.98); }
+        .btn-danger { background: #ef4444; color: white; font-weight: bold; padding: 16px; border-radius: 16px; width: 100%; text-align: center; }
+        .btn-secondary { background: #334155; color: white; font-weight: bold; padding: 16px; border-radius: 16px; width: 100%; text-align: center; }
+        
+        .card { background: #1e293b; border-radius: 16px; padding: 16px; margin-bottom: 12px; border: 1px solid #334155; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .logo-header { display: flex; align-items: center; justify-content: space-between; padding: 16px; background: #1e293b; border-bottom: 1px solid #334155; position: sticky; top: 0; z-index: 40; }
+        .logo-img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #f97316; }
+        
+        .toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%) translateY(-20px); background: #f97316; color: white; padding: 12px 24px; border-radius: 30px; font-weight: bold; z-index: 1000; opacity: 0; pointer-events: none; transition: all 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.3); text-align: center; width: 90%; max-width: 400px; }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        
+        .badge { background: #f97316; color: white; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; }
+        .badge-red { background: #ef4444; }
+        .badge-green { background: #22c55e; }
+        
+        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #334155; }
+        .list-item:last-child { border-bottom: none; }
+        
+        .bar-chart { height: 24px; background: #334155; border-radius: 12px; overflow: hidden; margin-top: 8px; }
+        .bar-fill { height: 100%; background: linear-gradient(90deg, #ea580c, #f97316); width: 0%; transition: width 1s ease-out; }
+        
+        .sub-tab-container { display: flex; overflow-x: auto; gap: 8px; margin-bottom: 16px; padding-bottom: 4px; }
+        .sub-tab { background: #334155; padding: 8px 16px; border-radius: 20px; font-size: 14px; white-space: nowrap; color: #cbd5e1; cursor: pointer;}
+        .sub-tab.active { background: #f97316; color: white; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <header class="logo-header">
+        <div class="flex items-center gap-3">
+            <img id="app-logo" src="logo.jpg" class="logo-img" alt="Logo">
+            <h1 class="text-xl font-bold tracking-wide">MOTO GEAR</h1>
+        </div>
+        <div class="flex gap-4">
+            <button onclick="document.getElementById('file-upload').click()" class="text-gray-400 text-xl"><i class="fas fa-file-import"></i></button>
+            <button onclick="abrirModal('modal-config')" class="text-gray-400 text-xl"><i class="fas fa-cog"></i></button>
+        </div>
+        <input type="file" id="file-upload" class="hidden" accept=".xlsx, .xls, .csv" onchange="importarPlanilha(event)">
+    </header>
+
+    <div id="toast" class="toast">Mensagem</div>
+
+    <!-- 1. DASHBOARD -->
+    <main id="tab-inicio" class="tab-content active">
+        <div class="card bg-gradient-to-br from-gear-800 to-gear-900 border-gear-orange border-l-4">
+            <p class="text-gray-400 text-sm font-bold">CAIXA ATUAL</p>
+            <h2 id="dash-saldo" class="text-3xl font-bold text-white mt-1">R$ 0,00</h2>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-3 mb-4">
+            <div class="card text-center !mb-0 p-3">
+                <i class="fas fa-boxes text-gear-orange text-2xl mb-2"></i>
+                <p class="text-xs text-gray-400 font-bold">ITENS ESTOQUE</p>
+                <p id="dash-itens" class="text-xl font-bold">0</p>
+            </div>
+            <div class="card text-center !mb-0 p-3">
+                <i class="fas fa-wrench text-gear-orange text-2xl mb-2"></i>
+                <p class="text-xs text-gray-400 font-bold">OS ABERTAS</p>
+                <p id="dash-os" class="text-xl font-bold">0</p>
+            </div>
+        </div>
+
+        <h3 class="font-bold text-gray-400 text-sm mb-3 mt-6"><i class="fas fa-exclamation-triangle text-red-500 mr-2"></i>ALERTAS DE ESTOQUE</h3>
+        <div id="dash-alertas" class="space-y-2 mb-6"></div>
+        
+        <!-- DASHBOARD TRANSAÇÕES (Added for V2.2 Auditoria) -->
+        <h3 class="font-bold text-gray-400 text-sm mb-3"><i class="fas fa-list-ul text-gear-orange mr-2"></i>AUDITORIA DE TRANSAÇÕES</h3>
+        <div id="dash-transacoes" class="card p-0 overflow-hidden mb-4"></div>
+    </main>
+
+    <!-- 2. ESTOQUE -->
+    <main id="tab-estoque" class="tab-content">
+        <div class="flex gap-2 mb-4">
+            <input type="text" id="busca-estoque" placeholder="Buscar peça..." class="!m-0" oninput="renderEstoque()">
+            <button onclick="abrirModalProduto()" class="bg-gear-orange text-white px-4 rounded-xl font-bold"><i class="fas fa-plus"></i></button>
+        </div>
+        <div id="lista-estoque" class="space-y-3"></div>
+    </main>
+
+    <!-- 3. SERVIÇOS -->
+    <main id="tab-servicos" class="tab-content">
+        <button onclick="abrirModalServico()" class="btn-primary mb-4"><i class="fas fa-plus"></i> NOVO SERVIÇO</button>
+        <div id="lista-servicos" class="space-y-3"></div>
+    </main>
+
+    <!-- 4. CAIXA -->
+    <main id="tab-caixa" class="tab-content">
+        <div class="card text-center">
+            <p class="text-gray-400 font-bold">SALDO</p>
+            <h2 id="caixa-saldo" class="text-3xl font-bold text-green-500">R$ 0,00</h2>
+        </div>
+        <div class="flex gap-3 mb-6">
+            <button onclick="abrirModalVenda()" class="btn-primary !bg-green-600"><i class="fas fa-arrow-down"></i> VENDER</button>
+            <button onclick="abrirModalDespesa()" class="btn-primary !bg-red-600"><i class="fas fa-arrow-up"></i> DESPESA</button>
+        </div>
+        <h3 class="font-bold text-gray-400 text-sm mb-3"><i class="fas fa-list-ul text-gear-orange mr-2"></i>AUDITORIA DE CAIXA</h3>
+        <div id="lista-transacoes" class="card p-0 overflow-hidden mb-4"></div>
+        <div class="flex gap-2">
+            <button onclick="exportarCaixaCSV()" class="btn-secondary !bg-blue-600 flex-1"><i class="fas fa-file-csv"></i> Exportar CSV</button>
+            <button onclick="limparCaixa()" class="btn-secondary !text-red-500 flex-1"><i class="fas fa-trash"></i> Resetar</button>
+        </div>
+    </main>
+
+    <!-- 5. CLIENTES & OS -->
+    <main id="tab-clientes" class="tab-content">
+        <div class="flex gap-2 mb-4">
+            <button onclick="abrirModalCliente()" class="btn-primary flex-1"><i class="fas fa-user-plus"></i> NOVO CLIENTE</button>
+            <button onclick="abrirCentralOS()" class="btn-primary flex-1 !bg-blue-600 !p-3 !text-sm"><i class="fas fa-clipboard-list"></i> Central de OS</button>
+        </div>
+        <input type="text" id="busca-cliente" placeholder="Buscar por nome ou placa..." oninput="renderClientes()">
+        <div id="lista-clientes" class="space-y-3 mt-4"></div>
+    </main>
+
+    <!-- 6. ANÁLISES -->
+    <main id="tab-analises" class="tab-content">
+        <div class="sub-tab-container">
+            <div class="sub-tab active" onclick="setAnaliseTab('geral', this)">Geral</div>
+            <div class="sub-tab" onclick="setAnaliseTab('produtos', this)">Produtos</div>
+            <div class="sub-tab" onclick="setAnaliseTab('servicos', this)">Serviços</div>
+            <div class="sub-tab" onclick="setAnaliseTab('mensal', this)">Fechamento Mensal</div>
+        </div>
+        <div id="conteudo-analises"></div>
+    </main>
+
+    <!-- 7. FORNECEDORES -->
+    <main id="tab-fornecedores" class="tab-content">
+        <div class="flex gap-2 mb-4">
+            <input type="text" id="busca-fornecedor" placeholder="Buscar fornecedor..." class="!m-0" oninput="renderFornecedores()">
+            <button onclick="abrirModalFornecedor()" class="bg-gear-orange text-white px-4 rounded-xl font-bold"><i class="fas fa-plus"></i></button>
+        </div>
+        <div id="lista-fornecedores" class="space-y-3"></div>
+    </main>
+
+    <!-- MODALS -->
+    <!-- Modal Configurações & Backup -->
+    <div id="modal-config" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold"><i class="fas fa-cog"></i> Configurações do Sistema</h2>
+                <button onclick="fecharModal('modal-config')" class="text-gear-orange text-xl"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="card border-blue-500 border-l-4">
+                <h3 class="font-bold text-gray-300 mb-2">Backup de Segurança</h3>
+                <p class="text-sm text-gray-400 mb-4">Gere um arquivo com todos os dados do sistema. Guarde-o com segurança.</p>
+                <button onclick="fazerBackup()" class="btn-primary !bg-blue-600 mb-2"><i class="fas fa-download"></i> Fazer Backup Completo</button>
+                
+                <hr class="border-gear-700 my-4">
+                
+                <h3 class="font-bold text-gray-300 mb-2">Restaurar Sistema</h3>
+                <p class="text-sm text-gray-400 mb-4">Importe um arquivo de backup (.motogear). ATENÇÃO: Isso substituirá os dados atuais!</p>
+                <button onclick="document.getElementById('file-restore').click()" class="btn-secondary"><i class="fas fa-upload"></i> Restaurar de um Arquivo</button>
+                <input type="file" id="file-restore" class="hidden" accept=".json, .motogear, .txt" onchange="restaurarBackup(event)">
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Fornecedor -->
+    <div id="modal-fornecedor" class="modal">
+        <div class="modal-content">
+            <h2 id="modal-fornecedor-titulo" class="text-xl font-bold mb-4">Novo Fornecedor</h2>
+            <input type="hidden" id="forn-id">
+            <label>Nome da Empresa / Fantasia</label><input type="text" id="forn-nome">
+            <div class="grid grid-cols-2 gap-3">
+                <div><label>CNPJ</label><input type="text" id="forn-cnpj"></div>
+                <div><label>Telefone / WhatsApp</label><input type="text" id="forn-tel"></div>
+            </div>
+            <label>Vendedor Responsável</label><input type="text" id="forn-vendedor">
+            <label>Observações</label><textarea id="forn-obs" rows="2"></textarea>
+            
+            <div class="flex gap-3 mt-4">
+                <button class="btn-secondary" onclick="fecharModal('modal-fornecedor')">Cancelar</button>
+                <button class="btn-primary" onclick="salvarFornecedor()">Salvar</button>
+            </div>
+            <button id="btn-del-forn" class="btn-danger mt-3 hidden" onclick="excluirFornecedor()">Excluir Fornecedor</button>
+        </div>
+    </div>
+
+    <!-- Modal Central de OS -->
+    <div id="modal-central-os" class="modal">
+        <div class="modal-content !max-h-[90vh]">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">Central de OS Ativas</h2>
+                <button onclick="fecharModal('modal-central-os')" class="text-gear-orange text-xl"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="lista-central-os" class="space-y-3 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <!-- Modal Produto -->
+    <div id="modal-produto" class="modal">
+        <div class="modal-content">
+            <h2 id="modal-produto-titulo" class="text-xl font-bold mb-4">Novo Produto</h2>
+            <input type="hidden" id="prod-id">
+            <label>Nome da Peça</label><input type="text" id="prod-nome">
+            <div class="grid grid-cols-2 gap-3">
+                <div><label>Categoria</label><input type="text" id="prod-categoria"></div>
+                <div><label>Marca</label><input type="text" id="prod-marca"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label>Custo (R$)</label><input type="number" id="prod-custo" step="0.01"></div>
+                <div><label>Venda (R$)</label><input type="number" id="prod-venda" step="0.01"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label>Qtd. Inicial</label><input type="number" id="prod-qtd"></div>
+                <div><label>Mínimo</label><input type="number" id="prod-min" value="2"></div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button class="btn-secondary" onclick="fecharModal('modal-produto')">Cancelar</button>
+                <button class="btn-primary" onclick="salvarProduto()">Salvar</button>
+            </div>
+            <button id="btn-del-prod" class="btn-danger mt-3 hidden" onclick="excluirProduto()">Excluir Produto</button>
+        </div>
+    </div>
+
+    <!-- Modal Serviço -->
+    <div id="modal-servico" class="modal">
+        <div class="modal-content">
+            <h2 id="modal-servico-titulo" class="text-xl font-bold mb-4">Novo Serviço</h2>
+            <input type="hidden" id="serv-id">
+            <label>Nome do Serviço</label><input type="text" id="serv-nome">
+            <label>Valor Mão de Obra (R$)</label><input type="number" id="serv-valor" step="0.01">
+            <div class="mt-4 border-t border-gear-700 pt-4">
+                <label class="text-gear-orange"><i class="fas fa-boxes"></i> Peças Vinculadas</label>
+                <div class="flex gap-2 mt-2">
+                    <select id="serv-add-peca" class="!m-0"></select>
+                    <input type="number" id="serv-add-qtd" class="!m-0 w-20" value="1" min="1">
+                    <button class="bg-gear-orange text-white px-4 rounded-xl" onclick="addPecaServico()"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="lista-pecas-servico" class="mt-3 space-y-2"></div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button class="btn-secondary" onclick="fecharModal('modal-servico')">Cancelar</button>
+                <button class="btn-primary" onclick="salvarServico()">Salvar</button>
+            </div>
+            <button id="btn-del-serv" class="btn-danger mt-3 hidden" onclick="excluirServico()">Excluir Serviço</button>
+        </div>
+    </div>
+
+    <!-- Modal Venda Direta -->
+    <div id="modal-venda" class="modal">
+        <div class="modal-content">
+            <h2 class="text-xl font-bold mb-4">Registrar Venda Direta</h2>
+            <label>Tipo de Venda</label>
+            <select id="venda-tipo" onchange="mudarTipoVenda()">
+                <option value="produto">Peça Avulsa</option>
+                <option value="servico">Serviço Rápido</option>
+            </select>
+            <label>Selecione o Item</label><select id="venda-item"></select>
+            <label>Quantidade</label><input type="number" id="venda-qtd" value="1" min="1">
+            <div class="flex gap-3 mt-6">
+                <button class="btn-secondary" onclick="fecharModal('modal-venda')">Cancelar</button>
+                <button class="btn-primary !bg-green-600" onclick="salvarVenda()"><i class="fas fa-check"></i> Vender</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Cliente -->
+    <div id="modal-cliente" class="modal">
+        <div class="modal-content">
+            <h2 id="modal-cliente-titulo" class="text-xl font-bold mb-4">Novo Cliente</h2>
+            <input type="hidden" id="cli-id">
+            <label>Nome Completo</label><input type="text" id="cli-nome">
+            <div class="grid grid-cols-2 gap-3">
+                <div><label>WhatsApp</label><input type="text" id="cli-tel"></div>
+                <div><label>Placa Moto</label><input type="text" id="cli-placa"></div>
+            </div>
+            <label>Modelo da Moto</label><input type="text" id="cli-moto">
+            <div class="flex gap-3 mt-6">
+                <button class="btn-secondary" onclick="fecharModal('modal-cliente')">Cancelar</button>
+                <button class="btn-primary" onclick="salvarCliente()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Perfil Cliente -->
+    <div id="perfil-cliente" class="modal !bg-gear-900" style="z-index: 60;">
+        <div class="w-full h-full bg-gear-900 flex flex-col">
+            <div class="p-4 border-b border-gear-700 flex justify-between items-center bg-gear-800">
+                <button onclick="fecharModal('perfil-cliente')" class="text-gear-orange text-xl"><i class="fas fa-arrow-left"></i></button>
+                <h2 class="font-bold text-lg" id="pc-nome">Nome Cliente</h2>
+                <button onclick="excluirCliente()" class="text-red-500 text-xl"><i class="fas fa-trash"></i></button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1">
+                <div class="card">
+                    <p class="text-sm text-gray-400"><i class="fas fa-motorcycle"></i> <span id="pc-moto"></span> (<span id="pc-placa" class="text-gear-orange font-bold"></span>)</p>
+                    <p class="text-sm text-gray-400 mt-1"><i class="fab fa-whatsapp"></i> <span id="pc-tel"></span></p>
+                </div>
+                <div class="flex gap-2 mb-4">
+                    <button class="btn-primary flex-1 !p-3 !text-sm" onclick="abrirModalOS()"><i class="fas fa-wrench"></i> Nova OS</button>
+                    <button class="btn-secondary flex-1 !p-3 !text-sm" onclick="abrirModalOrcamento()"><i class="fas fa-file-alt"></i> Orçamento</button>
+                </div>
+                <div class="sub-tab-container">
+                    <div class="sub-tab active" onclick="setPCTab('os', this)">OS</div>
+                    <div class="sub-tab" onclick="setPCTab('orcamentos', this)">Orçamentos</div>
+                    <div class="sub-tab" onclick="setPCTab('financeiro', this)">Financeiro</div>
+                </div>
+                <div id="pc-conteudo" class="space-y-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal OS / Orçamento -->
+    <div id="modal-os" class="modal">
+        <div class="modal-content !max-h-[95vh]">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="modal-os-titulo" class="text-xl font-bold">Nova O.S.</h2>
+                <span id="os-status-badge" class="badge"></span>
+            </div>
+            <input type="hidden" id="os-id">
+            <input type="hidden" id="os-tipo">
+            <input type="hidden" id="os-cli-id">
+            
+            <div id="os-status-container" class="mb-4 hidden">
+                <label>Status da O.S.</label>
+                <select id="os-status" class="!border-gear-orange !text-gear-orange font-bold" onchange="verificarStatusOS()">
+                    <option value="Pendente">Aguardando (Pendente)</option>
+                    <option value="Andamento">Em Andamento (Debita Peças)</option>
+                    <option value="Concluída">Concluída (Finalizada)</option>
+                    <option value="Cancelada">Cancelada</option>
+                </select>
+                <p id="os-status-aviso" class="text-xs text-gray-400 mt-1"></p>
+            </div>
+
+            <!-- Tempo Gasto for Analytics -->
+            <div id="os-tempo-container" class="card !p-3 mb-4 hidden border-blue-500 border-l-4">
+                <label>Tempo Gasto Total (Minutos)</label>
+                <input type="number" id="os-tempo-gasto" placeholder="Ex: 60" class="!mb-0">
+                <p class="text-xs text-gray-400 mt-1">Tempo real da execução para análise de R$/Hora</p>
+            </div>
+
+            <!-- Pagamento No Ato (Para OS Concluida) -->
+            <div id="os-pagamento-container" class="mb-4 hidden card !bg-green-900 !border-green-600">
+                <label class="text-green-400">Valor Pago Agora (R$)</label>
+                <input type="number" id="os-valor-pago" step="0.01">
+                <p class="text-xs text-green-300 mt-1">O restante ficará como pendência financeira para o cliente.</p>
+            </div>
+
+            <div class="card !p-3 mb-4">
+                <label class="text-gear-orange"><i class="fas fa-plus-circle"></i> Adicionar Item</label>
+                <div class="flex gap-2 mt-2">
+                    <select id="os-add-tipo" class="!m-0 w-1/3" onchange="mudarTipoItemOS()">
+                        <option value="produto">Peça</option>
+                        <option value="servico">Serviço</option>
+                    </select>
+                    <select id="os-add-item" class="!m-0 flex-1"></select>
+                </div>
+                <div class="flex gap-2 mt-2">
+                    <input type="number" id="os-add-qtd" class="!m-0 flex-1" placeholder="Qtd" value="1">
+                    <button class="bg-gear-orange text-white px-6 rounded-xl font-bold" onclick="addItemOS()">ADD</button>
+                </div>
+            </div>
+
+            <label>Itens Inclusos</label>
+            <div id="lista-itens-os" class="space-y-2 mb-4 max-h-40 overflow-y-auto"></div>
+            
+            <div class="flex justify-between items-center bg-gear-900 p-3 rounded-xl mb-4 border border-gear-700">
+                <span class="font-bold text-gray-400">Total (R$):</span>
+                <input type="number" id="os-total" class="!m-0 !w-1/2 text-right text-xl font-bold text-gear-orange !bg-gear-800 !p-2 !border-none" step="0.01">
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+                <button class="btn-secondary" onclick="fecharModal('modal-os')">Fechar</button>
+                <button id="btn-salvar-os" class="btn-primary" onclick="salvarOS()">Salvar</button>
+            </div>
+            <button id="btn-gerar-os" class="btn-primary !bg-green-600 mt-3 hidden" onclick="transformarOrcamentoEmOS()">Aprovar & Gerar OS</button>
+        </div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <nav class="bottom-nav">
+        <div class="nav-item active" onclick="switchTab('inicio', this)"><i class="fas fa-home"></i>Início</div>
+        <div class="nav-item" onclick="switchTab('estoque', this)"><i class="fas fa-boxes"></i>Estoque</div>
+        <div class="nav-item" onclick="switchTab('servicos', this)"><i class="fas fa-wrench"></i>Serviços</div>
+        <div class="nav-item" onclick="switchTab('caixa', this)"><i class="fas fa-wallet"></i>Caixa</div>
+        <div class="nav-item" onclick="switchTab('clientes', this)"><i class="fas fa-users"></i>Clientes</div>
+        <div class="nav-item" onclick="switchTab('fornecedores', this)"><i class="fas fa-truck"></i>Fornecedores</div>
+        <div class="nav-item" onclick="switchTab('analises', this)"><i class="fas fa-chart-bar"></i>Análises</div>
+    </nav>
+
+    <!-- JS Logic -->
+    <script>
+        let db = { produtos: [], servicos: [], clientes: [], os: [], orcamentos: [], transacoes: [], fornecedores: [] };
+        let pecasVinculadasTemp = [];
+        let itensOSTemp = [];
+        let clienteAtualId = null;
+
+        window.onload = async () => {
+            await initIDB();
+            await loadDB();
+            renderAll();
+        };
+
+        function showToast(msg) {
+            let t = document.getElementById('toast');
+            t.innerText = msg; t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        function switchTab(tabId, el) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            if(tabId === 'estoque') renderEstoque();
+            if(tabId === 'servicos') renderServicos();
+            if(tabId === 'caixa') renderCaixa();
+            if(tabId === 'clientes') renderClientes();
+            if(tabId === 'fornecedores') renderFornecedores();
+            if(tabId === 'analises') setAnaliseTab('geral', document.querySelector('#tab-analises .sub-tab-container .sub-tab'));
+            if(tabId === 'inicio') renderDashboard();
+        }
+
+        function abrirModal(id) { document.getElementById(id).classList.add('active'); }
+        function fecharModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        let idbInstance = null;
+        function initIDB() {
+            return new Promise((resolve) => {
+                try {
+                    if (!window.indexedDB) return resolve();
+                    let req = indexedDB.open("MotoGearDB", 1);
+                    req.onupgradeneeded = (e) => {
+                        let db = e.target.result;
+                        if (!db.objectStoreNames.contains('store')) db.createObjectStore('store');
+                    };
+                    req.onsuccess = (e) => { idbInstance = e.target.result; resolve(); };
+                    req.onerror = () => resolve();
+                } catch(e) { resolve(); }
+            });
+        }
+        function setIDB(key, val) {
+            if(!idbInstance) return;
+            try {
+                let tx = idbInstance.transaction('store', 'readwrite');
+                tx.objectStore('store').put(val, key);
+            } catch(e) { console.error("IDB Save Error", e); }
+        }
+        function getIDB(key) {
+            return new Promise((resolve) => {
+                if(!idbInstance) return resolve(null);
+                try {
+                    let tx = idbInstance.transaction('store', 'readonly');
+                    let req = tx.objectStore('store').get(key);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => resolve(null);
+                } catch(e) { resolve(null); }
+            });
+        }
+
+        async function saveDB(key) { 
+            let data = JSON.stringify(db[key]);
+            if (window.CapacitorPreferences) {
+                try { await window.CapacitorPreferences.set({ key: 'motogear_' + key, value: data }); } catch(e){}
+            }
+            try { localStorage.setItem('motogear_' + key, data); } catch(e){}
+            setIDB('motogear_' + key, data);
+        }
+        async function loadDB() {
+            let keys = ['produtos', 'servicos', 'clientes', 'os', 'orcamentos', 'transacoes', 'fornecedores'];
+            for(let k of keys) {
+                let d = null;
+                if (window.CapacitorPreferences) {
+                    try { let { value } = await window.CapacitorPreferences.get({ key: 'motogear_' + k }); d = value; } catch(e){}
+                }
+                if (!d) { try { d = localStorage.getItem('motogear_' + k); } catch(e){} }
+                if (!d) { d = await getIDB('motogear_' + k); }
+                if (d) { 
+                    db[k] = JSON.parse(d); 
+                    try { localStorage.setItem('motogear_' + k, d); } catch(e){}
+                }
+            }
+        }
+        function renderAll() { renderEstoque(); renderServicos(); renderCaixa(); renderClientes(); renderDashboard(); renderFornecedores(); }
+
+        /* ---------------- FUNÇÕES DE ARQUIVO (NATIVO E WEB) ---------------- */
+        async function baixarOuCompartilhar(filename, content, mimeType) {
+            // Se estiver no Capacitor (Android)
+            if (window.CapacitorFilesystem && window.CapacitorShare && window.CapacitorDirectory && window.CapacitorEncoding) {
+                try {
+                    const writeResult = await window.CapacitorFilesystem.writeFile({
+                        path: filename,
+                        data: content,
+                        directory: window.CapacitorDirectory.Cache,
+                        encoding: window.CapacitorEncoding.UTF8
+                    });
+                    
+                    await window.CapacitorShare.share({
+                        title: filename,
+                        url: writeResult.uri,
+                        dialogTitle: 'Compartilhar ou Salvar ' + filename
+                    });
+                    return;
+                } catch (err) {
+                    console.error("Capacitor share erro:", err);
+                }
+            }
+            
+            // Fallback Web Share API
+            let blob = new Blob([content], { type: mimeType });
+            let file = new File([blob], filename, { type: mimeType });
+            
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                navigator.share({ title: filename, files: [file] })
+                .catch(err => {
+                    console.error("Compartilhamento web falhou", err);
+                    fallbackDownload(blob, filename);
+                });
+            } else {
+                fallbackDownload(blob, filename);
+            }
+        }
+
+        function fallbackDownload(blob, filename) {
+            let link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        /* ---------------- CAIXA E TRANSAÇÕES ---------------- */
+        // Updated addTransacao to include auditoria parameters
+        function addTransacao(desc, valor, tipo, clienteNome = 'Avulso', origemDetalhada = '') {
+            db.transacoes.push({id: Date.now().toString(), desc, valor, tipo, data: new Date().toISOString(), clienteNome, origemDetalhada});
+            saveDB('transacoes');
+        }
+        
+        function renderCaixa() {
+            let saldo = db.transacoes.reduce((acc, t) => t.tipo === 'entrada' ? acc + t.valor : acc - t.valor, 0);
+            document.getElementById('caixa-saldo').innerText = `R$ ${saldo.toFixed(2)}`;
+            
+            let h = '';
+            db.transacoes.slice().reverse().forEach(t => {
+                let cor = t.tipo === 'entrada' ? 'text-green-500' : 'text-red-500';
+                let sinal = t.tipo === 'entrada' ? '+' : '-';
+                h += `
+                <div class="list-item flex-col items-start px-3 py-2 border-b border-gear-700">
+                    <div class="flex justify-between w-full">
+                        <p class="font-bold">${t.desc}</p>
+                        <p class="font-bold ${cor}">${sinal} R$ ${t.valor.toFixed(2)}</p>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1"><i class="fas fa-user mr-1"></i>${t.clienteNome}</p>
+                    ${t.origemDetalhada ? `<p class="text-xs text-gray-500 mt-1 leading-tight"><i class="fas fa-info-circle mr-1"></i>${t.origemDetalhada}</p>` : ''}
+                    <p class="text-[10px] text-gray-600 mt-1">${new Date(t.data).toLocaleString()}</p>
+                </div>`;
+            });
+            document.getElementById('lista-transacoes').innerHTML = h || '<p class="text-center text-gray-500 p-4">Nenhuma transação.</p>';
+            
+            // Render also in dashboard
+            document.getElementById('dash-transacoes').innerHTML = h || '<p class="text-center text-gray-500 p-4">Nenhuma transação.</p>';
+            document.getElementById('dash-saldo').innerText = `R$ ${saldo.toFixed(2)}`;
+        }
+        
+        function renderDashboard() {
+            renderCaixa();
+            renderEstoque();
+            let abertas = db.os.filter(o=>o.status==='Pendente'||o.status==='Andamento').length;
+            document.getElementById('dash-os').innerText = abertas;
+        }
+        
+        function limparCaixa() {
+            if(confirm('Tem certeza que deseja apagar TODO o histórico do caixa?')) { db.transacoes = []; saveDB('transacoes'); renderAll(); showToast('Caixa resetado!'); }
+        }
+        
+        function exportarCaixaCSV() {
+            if(db.transacoes.length === 0) return showToast('Nenhuma transação para exportar.');
+            let csv = 'Data,Descrição,Cliente,Tipo,Valor,Origem Detalhada\n';
+            db.transacoes.forEach(t => {
+                let dateStr = new Date(t.data).toLocaleString().replace(/,/g, '');
+                let desc = `"${t.desc.replace(/"/g, '""')}"`;
+                let cli = `"${t.clienteNome.replace(/"/g, '""')}"`;
+                let det = `"${(t.origemDetalhada||'').replace(/"/g, '""')}"`;
+                csv += `${dateStr},${desc},${cli},${t.tipo},${t.valor.toFixed(2)},${det}\n`;
+            });
+            baixarOuCompartilhar(`motogear_caixa_${new Date().toISOString().slice(0,10)}.csv`, csv, 'text/csv;charset=utf-8;');
+        }
+
+        /* ---------------- BACKUP & RESTAURAÇÃO ---------------- */
+        function fazerBackup() {
+            let backupData = {};
+            let keys = ['produtos', 'servicos', 'clientes', 'os', 'orcamentos', 'transacoes', 'fornecedores'];
+            keys.forEach(k => { backupData[k] = db[k]; });
+            let json = JSON.stringify(backupData);
+            baixarOuCompartilhar(`motogear_backup_${new Date().toISOString().slice(0,10)}.json`, json, 'application/json');
+            fecharModal('modal-config');
+            showToast('Backup gerado!');
+        }
+
+        function restaurarBackup(e) {
+            let f = e.target.files[0]; if(!f) return;
+            if(!confirm('Atenção: Isso apagará os dados atuais e substituirá pelo backup. Tem certeza?')) return;
+            let reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    let content = evt.target.result;
+                    let jsonStr = content;
+                    
+                    // Suporte para backups antigos codificados em Base64 (.txt, .motogear)
+                    if (!content.trim().startsWith('{')) {
+                        try { jsonStr = decodeURIComponent(escape(atob(content))); } catch(e){}
+                    }
+                    
+                    let backupData = JSON.parse(jsonStr);
+                    
+                    let keys = ['produtos', 'servicos', 'clientes', 'os', 'orcamentos', 'transacoes', 'fornecedores'];
+                    keys.forEach(k => { 
+                        if(backupData[k]) {
+                            db[k] = backupData[k];
+                            saveDB(k);
+                        }
+                    });
+                    showToast('Sistema Restaurado! Recarregando...');
+                    setTimeout(() => location.reload(), 1500);
+                } catch (err) {
+                    showToast("Arquivo inválido ou corrompido!");
+                }
+            };
+            reader.readAsText(f); e.target.value='';
+        }
+
+        /* ---------------- ESTOQUE ---------------- */
+        function renderEstoque() {
+            let b = document.getElementById('busca-estoque').value.toLowerCase();
+            let lista = db.produtos.filter(p => p.ativo && p.nome.toLowerCase().includes(b));
+            let h = ''; let alertas = ''; let qtdItens = 0;
+            lista.forEach(p => {
+                qtdItens += p.qtd;
+                let isAlert = p.qtd <= p.min;
+                h += `<div class="card flex justify-between items-center ${isAlert?'border-l-4 border-red-500':''}">
+                    <div onclick="editarProduto('${p.id}')" class="flex-1">
+                    <p class="font-bold">${p.nome} <span class="text-xs text-gray-400">(${p.marca})</span></p>
+                    <p class="text-sm text-gear-orange">Venda: R$ ${p.venda.toFixed(2)} | Custo: R$ ${p.custo.toFixed(2)}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="removeEstoqueRapido('${p.id}')" class="bg-red-500 text-white w-8 h-8 rounded-full font-bold shadow-md active:scale-95">-</button>
+                        <div class="text-center bg-gear-900 px-4 py-2 rounded-xl border border-gear-700 min-w-[60px]">
+                            <p class="text-2xl font-bold ${isAlert?'text-red-500':''}">${p.qtd}</p><p class="text-[10px] text-gray-400">ESTOQUE</p>
+                        </div>
+                        <button onclick="addEstoqueRapido('${p.id}')" class="bg-green-500 text-white w-8 h-8 rounded-full font-bold shadow-md active:scale-95">+</button>
+                    </div>
+                </div>`;
+                if(isAlert) {
+                    alertas += `<div class="bg-red-500 text-white p-2 rounded-lg text-sm flex justify-between"><span class="font-bold">${p.nome}</span><span>Restam: ${p.qtd}</span></div>`;
+                }
+            });
+            document.getElementById('lista-estoque').innerHTML = h;
+            document.getElementById('dash-alertas').innerHTML = alertas || '<p class="text-gray-500 text-sm">Nenhum alerta de estoque baixo.</p>';
+            document.getElementById('dash-itens').innerText = qtdItens;
+        }
+
+        function abrirModalProduto() {
+            document.getElementById('modal-produto-titulo').innerText = 'Novo Produto'; document.getElementById('prod-id').value = '';
+            document.getElementById('prod-nome').value = ''; document.getElementById('prod-categoria').value = ''; document.getElementById('prod-marca').value = '';
+            document.getElementById('prod-custo').value = ''; document.getElementById('prod-venda').value = ''; document.getElementById('prod-qtd').value = ''; document.getElementById('prod-min').value = '2';
+            document.getElementById('btn-del-prod').classList.add('hidden'); abrirModal('modal-produto');
+        }
+        function editarProduto(id) {
+            let p = db.produtos.find(x=>x.id===id); if(!p) return;
+            document.getElementById('modal-produto-titulo').innerText = 'Editar Produto'; document.getElementById('prod-id').value = p.id;
+            document.getElementById('prod-nome').value = p.nome; document.getElementById('prod-categoria').value = p.categoria; document.getElementById('prod-marca').value = p.marca;
+            document.getElementById('prod-custo').value = p.custo; document.getElementById('prod-venda').value = p.venda; document.getElementById('prod-qtd').value = p.qtd; document.getElementById('prod-min').value = p.min;
+            document.getElementById('btn-del-prod').classList.remove('hidden'); abrirModal('modal-produto');
+        }
+        function salvarProduto() {
+            let id = document.getElementById('prod-id').value, nome = document.getElementById('prod-nome').value;
+            if(!nome) return showToast('Nome obrigatório');
+            let obj = {
+                id: id || Date.now().toString(), nome, categoria: document.getElementById('prod-categoria').value, marca: document.getElementById('prod-marca').value,
+                custo: parseFloat(document.getElementById('prod-custo').value)||0, venda: parseFloat(document.getElementById('prod-venda').value)||0,
+                qtd: parseInt(document.getElementById('prod-qtd').value)||0, min: parseInt(document.getElementById('prod-min').value)||0, ativo: true
+            };
+            if(id) {
+                let old = db.produtos.find(x=>x.id===id);
+                if(obj.qtd > old.qtd) addTransacao(`Ajuste Estoque: ${nome}`, (obj.qtd-old.qtd)*obj.custo, 'saida', 'Sistema', `Entrada manual de ${obj.qtd-old.qtd} peças.`);
+                db.produtos[db.produtos.findIndex(x=>x.id===id)] = obj;
+            } else {
+                db.produtos.push(obj);
+                if(obj.qtd > 0) addTransacao(`Estoque Inicial: ${nome}`, obj.qtd*obj.custo, 'saida', 'Sistema', `Compra inicial de ${obj.qtd} peças.`);
+            }
+            saveDB('produtos'); fecharModal('modal-produto'); showToast('Salvo!'); renderAll();
+        }
+        function excluirProduto() {
+            let id = document.getElementById('prod-id').value;
+            db.produtos.find(x=>x.id===id).ativo = false; saveDB('produtos'); fecharModal('modal-produto'); renderAll(); showToast('Excluído!');
+        }
+
+        function addEstoqueRapido(id) {
+            let p = db.produtos.find(x=>x.id===id);
+            if(!p) return;
+            p.qtd += 1;
+            addTransacao(`Reposição Rápida: ${p.nome}`, p.custo, 'saida', 'Sistema', `Adição manual no estoque (+1)`);
+            saveDB('produtos'); renderEstoque(); renderCaixa(); showToast('+1 Adicionado!');
+        }
+
+        function removeEstoqueRapido(id) {
+            let p = db.produtos.find(x=>x.id===id);
+            if(!p || p.qtd <= 0) return showToast('Estoque zerado!');
+            p.qtd -= 1;
+            addTransacao(`Venda Avulsa/Rápida: ${p.nome}`, p.venda, 'entrada', 'Venda Balcão Rápida', `Remoção manual no estoque (-1)`);
+            saveDB('produtos'); renderEstoque(); renderCaixa(); showToast('-1 Removido!');
+        }
+
+        /* ---------------- SERVIÇOS ---------------- */
+        function renderServicos() {
+            let h = '';
+            db.servicos.filter(s=>s.ativo).forEach(s => {
+                let custoPecas = s.pecas.reduce((a, b) => { let p=db.produtos.find(x=>x.id===b.produtoId); return a + ((p?p.venda:0)*b.qtd); }, 0);
+                h += `<div class="card" onclick="editarServico('${s.id}')"><div class="flex justify-between items-center"><p class="font-bold">${s.nome}</p>
+                    <p class="font-bold text-gear-orange">R$ ${(s.valor + custoPecas).toFixed(2)}</p></div>
+                    <p class="text-xs text-gray-400 mt-1">Mão de Obra: R$ ${s.valor.toFixed(2)} | Peças: R$ ${custoPecas.toFixed(2)}</p></div>`;
+            });
+            document.getElementById('lista-servicos').innerHTML = h;
+        }
+        function renderPecasVinculadas() {
+            let h = '';
+            pecasVinculadasTemp.forEach((p, i) => {
+                let prod = db.produtos.find(x=>x.id===p.produtoId);
+                h += `<div class="flex justify-between items-center bg-gear-900 p-2 rounded-lg text-sm border border-gear-700"><span>${p.qtd}x ${prod?prod.nome:'Removido'}</span>
+                    <button onclick="remPecaServico(${i})" class="text-red-500"><i class="fas fa-trash"></i></button></div>`;
+            });
+            document.getElementById('lista-pecas-servico').innerHTML = h;
+        }
+        function addPecaServico() {
+            let pid = document.getElementById('serv-add-peca').value, qtd = parseInt(document.getElementById('serv-add-qtd').value)||1;
+            if(!pid) return;
+            pecasVinculadasTemp.push({produtoId: pid, qtd}); renderPecasVinculadas();
+        }
+        function remPecaServico(i) { pecasVinculadasTemp.splice(i, 1); renderPecasVinculadas(); }
+        
+        function abrirModalServico() {
+            document.getElementById('modal-servico-titulo').innerText = 'Novo Serviço'; document.getElementById('serv-id').value = '';
+            document.getElementById('serv-nome').value = ''; document.getElementById('serv-valor').value = '';
+            pecasVinculadasTemp = []; renderPecasVinculadas();
+            let opt = db.produtos.filter(p=>p.ativo).map(p=>`<option value="${p.id}">${p.nome} (R$ ${p.venda.toFixed(2)})</option>`).join('');
+            document.getElementById('serv-add-peca').innerHTML = opt;
+            document.getElementById('btn-del-serv').classList.add('hidden'); abrirModal('modal-servico');
+        }
+        function editarServico(id) {
+            let s = db.servicos.find(x=>x.id===id); if(!s) return;
+            document.getElementById('modal-servico-titulo').innerText = 'Editar Serviço'; document.getElementById('serv-id').value = s.id;
+            document.getElementById('serv-nome').value = s.nome; document.getElementById('serv-valor').value = s.valor;
+            pecasVinculadasTemp = JSON.parse(JSON.stringify(s.pecas)); renderPecasVinculadas();
+            let opt = db.produtos.filter(p=>p.ativo).map(p=>`<option value="${p.id}">${p.nome} (R$ ${p.venda.toFixed(2)})</option>`).join('');
+            document.getElementById('serv-add-peca').innerHTML = opt;
+            document.getElementById('btn-del-serv').classList.remove('hidden'); abrirModal('modal-servico');
+        }
+        function salvarServico() {
+            let id = document.getElementById('serv-id').value, nome = document.getElementById('serv-nome').value;
+            if(!nome) return showToast('Nome obrigatório');
+            let obj = { id: id || Date.now().toString(), nome, valor: parseFloat(document.getElementById('serv-valor').value)||0, pecas: pecasVinculadasTemp, ativo: true };
+            if(id) db.servicos[db.servicos.findIndex(x=>x.id===id)] = obj; else db.servicos.push(obj);
+            saveDB('servicos'); fecharModal('modal-servico'); showToast('Salvo!'); renderAll();
+        }
+        function excluirServico() {
+            let id = document.getElementById('serv-id').value; db.servicos.find(x=>x.id===id).ativo = false; saveDB('servicos'); fecharModal('modal-servico'); renderAll(); showToast('Excluído!');
+        }
+
+        /* ---------------- VENDAS & DESPESAS ---------------- */
+        function mudarTipoVenda() {
+            let t = document.getElementById('venda-tipo').value;
+            let opt = '';
+            if(t==='produto') { opt = db.produtos.filter(p=>p.ativo).map(p=>`<option value="${p.id}">${p.nome} (Estoque: ${p.qtd})</option>`).join(''); } 
+            else { opt = db.servicos.filter(s=>s.ativo).map(s=>`<option value="${s.id}">${s.nome}</option>`).join(''); }
+            document.getElementById('venda-item').innerHTML = opt;
+        }
+        function abrirModalVenda() { mudarTipoVenda(); abrirModal('modal-venda'); }
+        function salvarVenda() {
+            let tipo = document.getElementById('venda-tipo').value, itemId = document.getElementById('venda-item').value, qtd = parseInt(document.getElementById('venda-qtd').value)||1;
+            if(!itemId) return;
+            let total = 0;
+            let pNome = tipo==='produto' ? db.produtos.find(x=>x.id===itemId).nome : db.servicos.find(x=>x.id===itemId).nome;
+            let detalheAuditoria = `${tipo==='produto'?'Peça Avulsa':'Serviço Rápido'}: ${pNome} (Qtd: ${qtd})`;
+            
+            if(tipo === 'produto') {
+                let p = db.produtos.find(x=>x.id===itemId);
+                if(p.qtd < qtd) { alert('Estoque insuficiente!'); return; }
+                p.qtd -= qtd; total = p.venda * qtd;
+            } else {
+                let s = db.servicos.find(x=>x.id===itemId);
+                total = s.valor * qtd;
+                for(let i=0; i<s.pecas.length; i++) {
+                    let p = db.produtos.find(x=>x.id===s.pecas[i].produtoId);
+                    let debito = s.pecas[i].qtd * qtd;
+                    if(p.qtd < debito) { alert(`Estoque insuficiente da peça: ${p.nome}`); return; }
+                    p.qtd -= debito; total += p.venda * debito;
+                }
+            }
+            addTransacao(`Venda Balcão: ${pNome}`, total, 'entrada', 'Venda Balcão Avulsa', detalheAuditoria);
+            saveDB('produtos'); fecharModal('modal-venda'); showToast('Venda registrada!'); renderAll();
+        }
+        function abrirModalDespesa() {
+            let desc = prompt("Descrição da despesa:"); if(!desc) return;
+            let val = parseFloat(prompt("Valor (R$):")); if(!val) return;
+            addTransacao(desc, val, 'saida', 'Sistema', 'Lançamento manual de despesa'); showToast('Despesa registrada!'); renderAll();
+        }
+
+        /* ---------------- CLIENTES ---------------- */
+        function renderClientes() {
+            let b = document.getElementById('busca-cliente').value.toLowerCase();
+            let lista = db.clientes.filter(c => c.ativo !== false && (c.nome.toLowerCase().includes(b) || c.placa.toLowerCase().includes(b)));
+            let h = '';
+            lista.forEach(c => {
+                // REGRA 1: OS Abertas Tracker
+                let osAbertasCount = db.os.filter(o => o.clienteId === c.id && (o.status === 'Pendente' || o.status === 'Andamento')).length;
+                let badgeOS = osAbertasCount > 0 ? `<span class="badge ml-2 flex items-center gap-1"><i class="fas fa-thumbtack"></i> ${osAbertasCount} OS Abertas</span>` : '';
+                
+                // REGRA 2: Pendências Financeiras Tracker
+                let pendencias = db.os.filter(o => o.clienteId === c.id && o.status === 'Concluída' && (o.valorPago||0) < o.valorTotal);
+                let temPendencia = pendencias.length > 0;
+                let valorDevido = pendencias.reduce((acc, o) => acc + (o.valorTotal - (o.valorPago||0)), 0);
+                
+                let borderClass = temPendencia ? 'border-red-500 border-2 bg-red-900 bg-opacity-20' : 'border-gear-700';
+                let badgePend = temPendencia ? `<span class="badge badge-red ml-2 flex items-center gap-1 mt-2"><i class="fas fa-exclamation-circle"></i> ${pendencias.length} Pendências - Deve R$ ${valorDevido.toFixed(2)}</span>` : '';
+                
+                h += `<div class="card ${borderClass}" onclick="abrirPerfilCliente('${c.id}')">
+                    <div class="flex items-center flex-wrap mb-1"><p class="font-bold text-lg">${c.nome}</p>${badgeOS}</div>
+                    <p class="text-sm text-gray-400"><i class="fas fa-motorcycle"></i> ${c.moto} <span class="font-bold text-gear-orange">${c.placa}</span></p>
+                    ${badgePend}
+                </div>`;
+            });
+            document.getElementById('lista-clientes').innerHTML = h;
+        }
+        function abrirModalCliente() { document.getElementById('cli-id').value=''; document.getElementById('cli-nome').value=''; document.getElementById('cli-tel').value=''; document.getElementById('cli-placa').value=''; document.getElementById('cli-moto').value=''; abrirModal('modal-cliente'); }
+        function salvarCliente() {
+            let id = document.getElementById('cli-id').value, nome = document.getElementById('cli-nome').value;
+            if(!nome) return showToast('Nome obrigatório');
+            let obj = { id: id || Date.now().toString(), nome, tel: document.getElementById('cli-tel').value, placa: document.getElementById('cli-placa').value.toUpperCase(), moto: document.getElementById('cli-moto').value };
+            if(id) db.clientes[db.clientes.findIndex(x=>x.id===id)] = obj; else db.clientes.push(obj);
+            saveDB('clientes'); fecharModal('modal-cliente'); showToast('Salvo!'); renderAll();
+        }
+        function excluirCliente() {
+            if(confirm('Deseja excluir este cliente?')) {
+                let c = db.clientes.find(x=>x.id===clienteAtualId);
+                if(c) { c.ativo = false; saveDB('clientes'); }
+                fecharModal('perfil-cliente'); renderClientes(); showToast('Cliente Excluído!');
+            }
+        }
+
+        /* ---------------- CENTRAL DE OS ---------------- */
+        function abrirCentralOS() {
+            let h = '';
+            let ativas = db.os.filter(o => o.status === 'Pendente' || o.status === 'Andamento');
+            
+            // Ordenar por data mais recente
+            ativas.sort((a,b) => new Date(b.data) - new Date(a.data));
+            
+            ativas.forEach(o => {
+                let c = db.clientes.find(x => x.id === o.clienteId);
+                let cNome = c ? c.nome : 'Cliente Removido';
+                let stColor = o.status === 'Andamento' ? 'border-blue-500' : 'border-gear-orange';
+                
+                h += `
+                <div class="card p-3 border-l-4 ${stColor}" onclick="fecharModal('modal-central-os'); abrirPerfilCliente('${o.clienteId}'); setTimeout(()=>editarOS('${o.id}', 'os'), 400)">
+                    <div class="flex justify-between items-center mb-1">
+                        <p class="font-bold text-white">${cNome}</p>
+                        <span class="badge ${o.status==='Andamento'?'!bg-blue-500':'!bg-gear-orange'}">${o.status}</span>
+                    </div>
+                    <div class="flex justify-between text-sm text-gray-400">
+                        <p>OS #${o.id.slice(-4)}</p>
+                        <p class="font-bold">R$ ${o.valorTotal.toFixed(2)}</p>
+                    </div>
+                </div>`;
+            });
+            
+            document.getElementById('lista-central-os').innerHTML = h || '<p class="text-center text-gray-500 mt-4">Nenhuma OS Ativa.</p>';
+            abrirModal('modal-central-os');
+        }
+
+        /* ---------------- PERFIL CLIENTE & OS ---------------- */
+        function abrirPerfilCliente(id) {
+            clienteAtualId = id; let c = db.clientes.find(x=>x.id===id);
+            document.getElementById('pc-nome').innerText = c.nome; document.getElementById('pc-moto').innerText = c.moto;
+            document.getElementById('pc-placa').innerText = c.placa; document.getElementById('pc-tel').innerText = c.tel;
+            setPCTab('os', document.querySelector('#perfil-cliente .sub-tab-container .sub-tab')); abrirModal('perfil-cliente');
+        }
+        function setPCTab(tab, el) {
+            document.querySelectorAll('#perfil-cliente .sub-tab').forEach(c=>c.classList.remove('active')); if(el) el.classList.add('active');
+            let c = document.getElementById('pc-conteudo');
+            if(tab==='os') {
+                let list = db.os.filter(o=>o.clienteId===clienteAtualId);
+                c.innerHTML = list.length?list.map(o=>`<div class="card p-3 border-l-4 ${o.status==='Concluída'?'border-green-500':o.status==='Andamento'?'border-blue-500':'border-gear-orange'}" onclick="editarOS('${o.id}', 'os')"><div class="flex justify-between"><p class="font-bold">OS #${o.id.slice(-4)}</p><p class="font-bold">R$ ${o.valorTotal.toFixed(2)}</p></div><p class="text-sm text-gray-400 mt-1">${new Date(o.data).toLocaleDateString()} - <span class="font-bold text-white">${o.status}</span></p></div>`).join(''):'<p class="text-gray-500">Nenhuma O.S.</p>';
+            } else if (tab==='orcamentos') {
+                let list = db.orcamentos.filter(o=>o.clienteId===clienteAtualId);
+                c.innerHTML = list.length?list.map(o=>`<div class="card p-3" onclick="editarOS('${o.id}', 'orcamento')"><div class="flex justify-between"><p class="font-bold">Orçamento #${o.id.slice(-4)}</p><p class="font-bold text-gear-orange">R$ ${o.valorTotal.toFixed(2)}</p></div><p class="text-sm text-gray-400 mt-1">${new Date(o.data).toLocaleDateString()}</p></div>`).join(''):'<p class="text-gray-500">Nenhum orçamento.</p>';
+            } else if (tab==='financeiro') {
+                let pends = db.os.filter(o=>o.clienteId===clienteAtualId && o.status==='Concluída' && (o.valorPago||0) < o.valorTotal);
+                c.innerHTML = (pends.length?pends.map(o=>`<div class="card p-3 border-l-4 border-red-500"><div class="flex justify-between"><p class="font-bold">OS #${o.id.slice(-4)}</p><p class="font-bold text-red-500">Deve R$ ${(o.valorTotal - (o.valorPago||0)).toFixed(2)}</p></div><button onclick="quitarPendencia('${o.id}')" class="btn-primary !bg-green-600 mt-2 !p-2 !text-sm">Registrar Pagamento</button></div>`).join(''):'<p class="text-gray-500">Nenhuma pendência.</p>');
+            }
+        }
+        
+        function quitarPendencia(id) {
+            let o = db.os.find(x=>x.id===id);
+            if(!o) return;
+            let val = o.valorTotal - (o.valorPago||0);
+            o.valorPago = o.valorTotal;
+            saveDB('os');
+            let cNome = db.clientes.find(x=>x.id===o.clienteId).nome;
+            addTransacao(`Quitação de Pendência (OS #${o.id.slice(-4)})`, val, 'entrada', cNome, `Recebimento de valores em atraso.`);
+            showToast('Pagamento Registrado!'); renderAll(); setPCTab('financeiro', document.querySelector('#perfil-cliente .sub-tab-container .sub-tab:nth-child(3)'));
+        }
+
+        function mudarTipoItemOS() {
+            let t = document.getElementById('os-add-tipo').value; let opt = '';
+            if(t==='produto') { opt = db.produtos.filter(p=>p.ativo).map(p=>`<option value="${p.id}">${p.nome} (R$ ${p.venda.toFixed(2)})</option>`).join(''); }
+            else { opt = db.servicos.filter(s=>s.ativo).map(s=>`<option value="${s.id}">${s.nome} (M.O. R$ ${s.valor.toFixed(2)})</option>`).join(''); }
+            document.getElementById('os-add-item').innerHTML = opt;
+        }
+        function abrirModalOS() { initModalOS('os'); }
+        function abrirModalOrcamento() { initModalOS('orcamento'); }
+        function initModalOS(tipo) {
+            document.getElementById('os-id').value = ''; document.getElementById('os-cli-id').value = clienteAtualId; document.getElementById('os-tipo').value = tipo;
+            document.getElementById('modal-os-titulo').innerText = tipo==='os'?'Nova O.S.':'Novo Orçamento'; document.getElementById('os-status-badge').innerText = tipo==='os'?'Rascunho':'Orçamento';
+            document.getElementById('os-status-container').classList.add('hidden'); document.getElementById('btn-gerar-os').classList.add('hidden');
+            document.getElementById('os-tempo-container').classList.add('hidden'); document.getElementById('os-pagamento-container').classList.add('hidden');
+            document.getElementById('os-valor-pago').value = '';
+            itensOSTemp = []; renderItensOS(); mudarTipoItemOS(); abrirModal('modal-os'); document.getElementById('btn-salvar-os').classList.remove('hidden');
+        }
+        
+        function addItemOS() {
+            let tipo = document.getElementById('os-add-tipo').value, itemId = document.getElementById('os-add-item').value, qtd = parseInt(document.getElementById('os-add-qtd').value)||1;
+            if(!itemId) return;
+            let nome = tipo==='produto' ? db.produtos.find(x=>x.id===itemId).nome : db.servicos.find(x=>x.id===itemId).nome;
+            let val = 0;
+            if(tipo==='produto') val = db.produtos.find(x=>x.id===itemId).venda * qtd;
+            else {
+                let s = db.servicos.find(x=>x.id===itemId); val = s.valor * qtd;
+                s.pecas.forEach(p => { let pr = db.produtos.find(x=>x.id===p.produtoId); if(pr) val += pr.venda * p.qtd * qtd; });
+            }
+            itensOSTemp.push({ tipo, itemId, nome, qtd, total: val }); renderItensOS();
+        }
+        function remItemOS(i) { itensOSTemp.splice(i,1); renderItensOS(); }
+        function renderItensOS() {
+            let h = '', total = 0;
+            itensOSTemp.forEach((i, idx) => {
+                total += i.total;
+                h += `<div class="flex justify-between items-center bg-gear-800 p-2 rounded-lg text-sm border border-gear-700"><div><p class="font-bold">${i.qtd}x ${i.nome}</p><p class="text-xs text-gray-400">R$ ${i.total.toFixed(2)}</p></div><button onclick="remItemOS(${idx})" class="text-red-500"><i class="fas fa-trash"></i></button></div>`;
+            });
+            document.getElementById('lista-itens-os').innerHTML = h;
+            document.getElementById('os-total').value = total.toFixed(2);
+            document.getElementById('os-total').setAttribute('data-total', total.toFixed(2));
+            
+            // Dashboard OS Abertas counter
+            let abertas = db.os.filter(o=>o.status==='Pendente'||o.status==='Andamento').length;
+            document.getElementById('dash-os').innerText = abertas;
+        }
+
+        function salvarOS() {
+            let id = document.getElementById('os-id').value, t = document.getElementById('os-tipo').value;
+            if(itensOSTemp.length === 0) return showToast('Adicione itens!');
+            let total = parseFloat(document.getElementById('os-total').value);
+            let isN = !id;
+            let obj = {
+                id: id || Date.now().toString(), clienteId: document.getElementById('os-cli-id').value,
+                data: new Date().toISOString(), itens: itensOSTemp, valorTotal: total, status: 'Pendente', estoqueDebitado: false
+            };
+            if(t==='os') {
+                if(!isN) {
+                    let oldObj = db.os.find(x=>x.id===id);
+                    obj.status = document.getElementById('os-status').value;
+                    obj.estoqueDebitado = oldObj.estoqueDebitado;
+                    obj.tempoGasto = parseFloat(document.getElementById('os-tempo-gasto').value)||0;
+                }
+                
+                let s = obj.status;
+                let prevS = isN ? '' : db.os.find(x=>x.id===id).status;
+                
+                // Debitar Estoque
+                if((s==='Andamento' || s==='Concluída') && !obj.estoqueDebitado) {
+                    let erroE = false;
+                    obj.itens.forEach(i => {
+                        if(i.tipo==='produto') {
+                            let p = db.produtos.find(x=>x.id===i.itemId); if(p.qtd < i.qtd) erroE=true;
+                        } else {
+                            let sv = db.servicos.find(x=>x.id===i.itemId);
+                            sv.pecas.forEach(p => { let pr=db.produtos.find(x=>x.id===p.produtoId); if(pr.qtd < p.qtd*i.qtd) erroE=true; });
+                        }
+                    });
+                    if(erroE) { alert('Estoque insuficiente para debitar peças desta OS!'); return; }
+                    
+                    obj.itens.forEach(i => {
+                        if(i.tipo==='produto') { db.produtos.find(x=>x.id===i.itemId).qtd -= i.qtd; } 
+                        else { let sv = db.servicos.find(x=>x.id===i.itemId); sv.pecas.forEach(p => { db.produtos.find(x=>x.id===p.produtoId).qtd -= p.qtd*i.qtd; }); }
+                    });
+                    saveDB('produtos'); obj.estoqueDebitado = true; showToast('Estoque debitado!');
+                }
+                
+                // Auditoria Transação de Conclusão da OS
+                let pagoAgora = parseFloat(document.getElementById('os-valor-pago').value)||0;
+                if(isN) {
+                    obj.valorPago = pagoAgora;
+                } else {
+                    obj.valorPago = db.os.find(x=>x.id===id).valorPago || 0;
+                    if(s==='Concluída' && prevS!=='Concluída') {
+                        obj.valorPago += pagoAgora;
+                        
+                        // Grava no Extrato do Caixa
+                        let cNome = db.clientes.find(x=>x.id===obj.clienteId).nome;
+                        let det = obj.itens.map(i => `${i.tipo==='produto'?'Peça':'Serviço'}: ${i.nome}`).join(' + ');
+                        if (pagoAgora > 0) {
+                            addTransacao(`Fechamento OS #${obj.id.slice(-4)}`, pagoAgora, 'entrada', cNome, det);
+                        }
+                    }
+                }
+                
+                if(isN) db.os.push(obj); else db.os[db.os.findIndex(x=>x.id===id)]=obj; saveDB('os');
+            } else { if(isN) db.orcamentos.push(obj); else db.orcamentos[db.orcamentos.findIndex(x=>x.id===id)]=obj; saveDB('orcamentos'); }
+            fecharModal('modal-os'); setPCTab(t, document.querySelector(`#perfil-cliente .sub-tab-container .sub-tab:nth-child(${t==='os'?1:2})`)); renderAll();
+        }
+
+        function editarOS(id, t) {
+            initModalOS(t); let obj = t==='os'?db.os.find(x=>x.id===id):db.orcamentos.find(x=>x.id===id);
+            document.getElementById('os-id').value = obj.id; document.getElementById('modal-os-titulo').innerText = t==='os'?`O.S. #${id.slice(-4)}`:`Orç. #${id.slice(-4)}`;
+            itensOSTemp = JSON.parse(JSON.stringify(obj.itens)); renderItensOS();
+            if(t==='os') {
+                document.getElementById('os-status-container').classList.remove('hidden');
+                document.getElementById('os-status-badge').innerText = obj.status;
+                if(obj.status === 'Pendente') document.getElementById('os-status-badge').className = 'px-2 py-1 bg-yellow-600 text-white rounded text-xs ml-2';
+                else if(obj.status === 'Em Andamento') document.getElementById('os-status-badge').className = 'px-2 py-1 bg-blue-600 text-white rounded text-xs ml-2';
+                else if(obj.status === 'Concluída') document.getElementById('os-status-badge').className = 'px-2 py-1 bg-green-600 text-white rounded text-xs ml-2';
+                else if(obj.status === 'Cancelada') document.getElementById('os-status-badge').className = 'px-2 py-1 bg-red-600 text-white rounded text-xs ml-2';
+                else document.getElementById('os-status-badge').className = 'px-2 py-1 bg-gear-orange text-white rounded text-xs ml-2';
+
+                document.getElementById('os-status').value = obj.status;
+                document.getElementById('os-tempo-gasto').value = obj.tempoGasto||'';
+                let fin = (obj.status==='Concluída' || obj.status==='Cancelada');
+                document.getElementById('os-status').disabled = fin; document.getElementById('btn-salvar-os').classList.toggle('hidden', fin);
+                verificarStatusOS();
+            } else { document.getElementById('btn-gerar-os').classList.remove('hidden'); }
+        }
+        function verificarStatusOS() {
+            let s = document.getElementById('os-status').value;
+            let finalizada = document.getElementById('os-status').disabled; // se já estava concluida, não mostra pag
+            document.getElementById('os-tempo-container').classList.toggle('hidden', s==='Pendente');
+            document.getElementById('os-pagamento-container').classList.toggle('hidden', s!=='Concluída' || finalizada);
+            if(s==='Concluída' && !finalizada) document.getElementById('os-valor-pago').value = document.getElementById('os-total').getAttribute('data-total');
+        }
+        function transformarOrcamentoEmOS() {
+            let id = document.getElementById('os-id').value, orc = db.orcamentos.find(x=>x.id===id);
+            db.os.push({id: Date.now().toString(), clienteId: orc.clienteId, data: new Date().toISOString(), itens: JSON.parse(JSON.stringify(orc.itens)), valorTotal: orc.valorTotal, status: 'Pendente', estoqueDebitado: false });
+            saveDB('os'); fecharModal('modal-os'); showToast('OS Gerada!'); setPCTab('os', document.querySelector('#perfil-cliente .sub-tab')); renderAll();
+        }
+
+        /* ---------------- ANÁLISES ---------------- */
+        function setAnaliseTab(tab, el) {
+            document.querySelectorAll('#tab-analises .sub-tab').forEach(c=>c.classList.remove('active')); if(el) el.classList.add('active');
+            let c = document.getElementById('conteudo-analises');
+            if(tab==='geral') {
+                let r=db.transacoes.filter(t=>t.tipo==='entrada').reduce((a,b)=>a+b.valor,0), d=db.transacoes.filter(t=>t.tipo==='saida').reduce((a,b)=>a+b.valor,0);
+                c.innerHTML = `<div class="card text-center mb-4"><p class="text-gray-400">Receitas</p><h2 class="text-3xl font-bold text-green-500">R$ ${r.toFixed(2)}</h2></div><div class="card text-center"><p class="text-gray-400">Despesas</p><h2 class="text-3xl font-bold text-red-500">R$ ${d.toFixed(2)}</h2></div>`;
+            } else if (tab==='produtos') {
+                c.innerHTML = '<h3 class="font-bold mb-3 text-gear-orange">Ranking Estoque</h3>' + db.produtos.filter(p=>p.ativo).sort((a,b)=>b.qtd-a.qtd).slice(0,10).map(p=>`<div class="mb-3"><div class="flex justify-between text-sm"><span>${p.nome}</span><span>${p.qtd} un</span></div><div class="bar-chart"><div class="bar-fill" style="width: ${Math.min((p.qtd/50)*100,100)}%"></div></div></div>`).join('');
+            } else if (tab==='mensal') {
+                let meses = {};
+                db.transacoes.forEach(t => {
+                    let m = t.data.slice(0,7); // YYYY-MM
+                    if(!meses[m]) meses[m] = { in: 0, out: 0 };
+                    if(t.tipo === 'entrada') meses[m].in += t.valor; else meses[m].out += t.valor;
+                });
+                let arr = Object.keys(meses).sort().reverse();
+                let h = '<h3 class="font-bold mb-3 text-gear-orange">Resumo Mensal</h3>';
+                h += arr.map(m => {
+                    let lucro = meses[m].in - meses[m].out;
+                    let [yy, mm] = m.split('-');
+                    let nomeMes = new Date(yy, parseInt(mm)-1, 1).toLocaleString('pt-BR', {month:'long', year:'numeric'}).toUpperCase();
+                    return `<div class="card p-3 mb-3 border-l-4 ${lucro>=0?'border-green-500':'border-red-500'}">
+                        <p class="font-bold mb-2">${nomeMes}</p>
+                        <div class="flex justify-between text-sm text-gray-300"><span>Entradas:</span> <span class="text-green-500">R$ ${meses[m].in.toFixed(2)}</span></div>
+                        <div class="flex justify-between text-sm text-gray-300 mb-2"><span>Saídas:</span> <span class="text-red-500">R$ ${meses[m].out.toFixed(2)}</span></div>
+                        <div class="flex justify-between font-bold border-t border-gear-700 pt-2"><span>Lucro Líquido:</span> <span class="${lucro>=0?'text-green-500':'text-red-500'}">R$ ${lucro.toFixed(2)}</span></div>
+                    </div>`;
+                }).join('') || '<p class="text-gray-500">Sem dados mensais.</p>';
+                c.innerHTML = h;
+            } else if (tab==='servicos') {
+                let stats = {}; db.servicos.forEach(s=>stats[s.nome]={mo:0, tempo:0, qtd:0});
+                db.os.filter(o=>o.status==='Concluída').forEach(o=>{
+                    let s_in = o.itens.filter(i=>i.tipo==='servico'); let totMo = s_in.reduce((a,b)=>a+b.total,0);
+                    s_in.forEach(s=>{
+                        if(!stats[s.nome]) stats[s.nome]={mo:0, tempo:0, qtd:0};
+                        stats[s.nome].mo+=s.total; stats[s.nome].qtd+=s.qtd;
+                        if(totMo>0) stats[s.nome].tempo+= (o.tempoGasto||0)*(s.total/totMo);
+                    });
+                });
+                let arr = Object.keys(stats).filter(k=>stats[k].qtd>0).map(k=>{ let h=stats[k].tempo/60; return {nome:k, rsh:h>0?(stats[k].mo/h):stats[k].mo, ...stats[k]}; }).sort((a,b)=>b.rsh-a.rsh);
+                c.innerHTML = '<h3 class="font-bold mb-3 text-gear-orange">Lucratividade Mão de Obra (R$/h)</h3>' + (arr.length?arr.map(a=>`<div class="mb-3"><div class="flex justify-between text-sm"><span class="font-bold">${a.nome} (${a.qtd}x)</span><span class="text-green-500 font-bold">R$ ${a.rsh.toFixed(2)}/h</span></div><p class="text-xs text-gray-500 mb-1">Tempo total investido: ${Math.round(a.tempo)} min</p><div class="bar-chart !h-2"><div class="bar-fill" style="width: ${Math.min((a.rsh/300)*100,100)}%"></div></div></div>`).join(''):'<p class="text-gray-500">Sem dados.</p>');
+            }
+            setTimeout(()=>document.querySelectorAll('.bar-fill').forEach(e=>e.style.width=e.style.width), 50);
+        }
+
+        /* ---------------- IMPORTAÇÃO ---------------- */
+        function importarPlanilha(e) {
+            let f = e.target.files[0]; if(!f) return;
+            let reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    let wb = XLSX.read(new Uint8Array(evt.target.result), {type:'array'}), imp=0;
+                    wb.SheetNames.forEach(sn => {
+                        let rows = XLSX.utils.sheet_to_json(wb.Sheets[sn]);
+                        rows.forEach(rowOriginal => {
+                            let r = {};
+                            for (let key in rowOriginal) {
+                                r[key.toLowerCase().trim()] = rowOriginal[key];
+                            }
+                            let n = r["nome"];
+                            if(!n) return;
+
+                            let isCliente = "placa" in r || "telefone" in r || "whatsapp" in r || "moto" in r || "modelo moto" in r;
+                            let isProduto = "custo" in r || "venda" in r || "preço custo" in r || "preço venda" in r || "categoria" in r || "marca" in r || "quantidade" in r || "qtd" in r;
+                            let isServico = "valor" in r || "mão de obra" in r || "valor cobrado" in r || "peça vinculada" in r || "peca vinculada" in r;
+
+                            if (!isCliente && !isProduto && !isServico) {
+                                let snLower = sn.toLowerCase();
+                                if (snLower.includes("cliente")) isCliente = true;
+                                else if (snLower.includes("produto") || snLower.includes("peça") || snLower.includes("peca") || snLower.includes("estoque")) isProduto = true;
+                                else if (snLower.includes("serviço") || snLower.includes("servico")) isServico = true;
+                            }
+
+                            if(isCliente) {
+                                db.clientes.push({id:Date.now()+Math.random().toString().slice(2,5), nome:n, tel:String(r["telefone"]||r["whatsapp"]||""), placa:String(r["placa"]||"").toUpperCase(), moto:String(r["modelo moto"]||r["moto"]||"")}); imp++;
+                            } else if(isProduto) {
+                                db.produtos.push({id:Date.now()+Math.random().toString().slice(2,5), nome:n, categoria:String(r["categoria"]||""), marca:String(r["marca"]||""), custo:parseFloat(r["preço custo"]||r["preco custo"]||r["custo"])||0, venda:parseFloat(r["preço venda"]||r["preco venda"]||r["venda"])||0, qtd:parseInt(r["quantidade inicial"]||r["quantidade"]||r["qtd"])||0, min:parseInt(r["estoque mínimo"]||r["estoque minimo"]||r["minimo"])||2, ativo:true}); imp++;
+                            } else if(isServico) {
+                                let pecas=[], pNome=String(r["peça vinculada"]||r["peca vinculada"]||"").trim();
+                                if(pNome) { let p=db.produtos.find(x=>x.nome.toLowerCase()===pNome.toLowerCase()&&x.ativo); if(p) pecas.push({produtoId:p.id,qtd:1}); }
+                                db.servicos.push({id:Date.now()+Math.random().toString().slice(2,5), nome:n, valor:parseFloat(r["valor cobrado"]||r["valor"]||r["mão de obra"])||0, pecas, ativo:true}); imp++;
+                            }
+                        });
+                    });
+                    saveDB('clientes'); saveDB('produtos'); saveDB('servicos');
+                    showToast(`Importado: ${imp} registros!`); renderAll();
+                } catch (err) {
+                    showToast("Erro ao ler arquivo: " + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(f); e.target.value='';
+        }
+
+        /* ---------------- FORNECEDORES ---------------- */
+        function renderFornecedores() {
+            let b = document.getElementById('busca-fornecedor').value.toLowerCase();
+            let lista = db.fornecedores.filter(f => f.ativo !== false && (f.nome.toLowerCase().includes(b) || f.cnpj.includes(b)));
+            let h = '';
+            lista.forEach(f => {
+                h += `<div class="card" onclick="editarFornecedor('${f.id}')">
+                    <p class="font-bold text-lg">${f.nome}</p>
+                    <p class="text-sm text-gray-400"><i class="fas fa-id-card"></i> ${f.cnpj} | <i class="fab fa-whatsapp"></i> ${f.tel}</p>
+                    <p class="text-xs text-gear-orange mt-1">Vend: ${f.vendedor}</p>
+                </div>`;
+            });
+            document.getElementById('lista-fornecedores').innerHTML = h || '<p class="text-gray-500 text-center p-4">Nenhum fornecedor cadastrado.</p>';
+        }
+        function abrirModalFornecedor() { 
+            document.getElementById('forn-id').value=''; document.getElementById('forn-nome').value=''; 
+            document.getElementById('forn-cnpj').value=''; document.getElementById('forn-tel').value=''; 
+            document.getElementById('forn-vendedor').value=''; document.getElementById('forn-obs').value=''; 
+            document.getElementById('btn-del-forn').classList.add('hidden');
+            document.getElementById('modal-fornecedor-titulo').innerText = 'Novo Fornecedor';
+            abrirModal('modal-fornecedor'); 
+        }
+        function editarFornecedor(id) {
+            let f = db.fornecedores.find(x=>x.id===id); if(!f) return;
+            document.getElementById('forn-id').value = f.id; document.getElementById('forn-nome').value = f.nome;
+            document.getElementById('forn-cnpj').value = f.cnpj; document.getElementById('forn-tel').value = f.tel;
+            document.getElementById('forn-vendedor').value = f.vendedor; document.getElementById('forn-obs').value = f.obs;
+            document.getElementById('btn-del-forn').classList.remove('hidden');
+            document.getElementById('modal-fornecedor-titulo').innerText = 'Editar Fornecedor';
+            abrirModal('modal-fornecedor');
+        }
+        function salvarFornecedor() {
+            let id = document.getElementById('forn-id').value, nome = document.getElementById('forn-nome').value;
+            if(!nome) return showToast('Nome obrigatório');
+            let obj = { id: id || Date.now().toString(), nome, cnpj: document.getElementById('forn-cnpj').value, tel: document.getElementById('forn-tel').value, vendedor: document.getElementById('forn-vendedor').value, obs: document.getElementById('forn-obs').value };
+            if(id) db.fornecedores[db.fornecedores.findIndex(x=>x.id===id)] = obj; else db.fornecedores.push(obj);
+            saveDB('fornecedores'); fecharModal('modal-fornecedor'); showToast('Salvo!'); renderFornecedores();
+        }
+        function excluirFornecedor() {
+            if(confirm('Deseja excluir este fornecedor?')) {
+                let id = document.getElementById('forn-id').value;
+                let f = db.fornecedores.find(x=>x.id===id);
+                if(f) { f.ativo = false; saveDB('fornecedores'); }
+                fecharModal('modal-fornecedor'); renderFornecedores(); showToast('Fornecedor Excluído!');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,105 +1,89 @@
-# Modelo de Dados
+# Modelo de dados
 
-Todo o estado do app fica num único objeto global `db`, inicializado assim
-(ver `app/www/index.html`, variável `db` no topo do `<script>`):
+Definição em [`server/src/schema.sql`](../server/src/schema.sql). A conversão
+entre a linha do banco e o formato que o app recebe fica em
+[`server/src/mapeadores.js`](../server/src/mapeadores.js) — os nomes mudam de
+`snake_case` para `camelCase` na fronteira.
 
-```js
-let db = { produtos: [], servicos: [], clientes: [], os: [], orcamentos: [], transacoes: [], fornecedores: [] };
-```
+Listas aninhadas (peças de um serviço, itens de uma OS) ficam em **JSONB**: são
+sempre lidas junto com o registro pai e nunca consultadas isoladamente, então
+normalizar traria junções sem ganho.
 
-Cada chave é persistida separadamente (`saveDB('produtos')`, `saveDB('os')`,
-etc. — ver `docs/ARQUITETURA.md`). Não há relação formal (FK) — os vínculos
-são feitos por `id` (string, geralmente `Date.now().toString()`), sem checagem
-de integridade além do que o próprio código garante.
+## `produtos`
 
-## `produtos` (Estoque)
+| Coluna | Tipo | No app | Observação |
+|---|---|---|---|
+| `id` | TEXT | `id` | UUID |
+| `nome` | TEXT | `nome` | |
+| `categoria`, `marca` | TEXT | idem | livres |
+| `codigo_barras` | TEXT | `codigoBarras` | usado pelo leitor |
+| `custo`, `venda` | NUMERIC(12,2) | idem | reais |
+| `qtd` | INTEGER | `qtd` | estoque atual |
+| `minimo` | INTEGER | `min` | abaixo disso vira alerta |
+| `ativo` | BOOLEAN | `ativo` | exclusão é lógica |
 
-| Campo | Tipo | Descrição |
-|---|---|---|
-| `id` | string | timestamp da criação |
-| `nome` | string | nome da peça |
-| `categoria` | string | livre |
-| `marca` | string | livre |
-| `custo` | number | preço de custo (R$) |
-| `venda` | number | preço de venda (R$) |
-| `qtd` | number | quantidade em estoque |
-| `min` | number | estoque mínimo — abaixo disso vira alerta no dashboard |
-| `ativo` | boolean | exclusão é lógica (`ativo=false`), nunca remove do array |
+## `servicos`
 
-## `servicos` (Serviços)
+| Coluna | Tipo | No app | Observação |
+|---|---|---|---|
+| `valor` | NUMERIC | `valor` | mão de obra, **sem** as peças |
+| `pecas` | JSONB | `pecas` | `[{produtoId, qtd}]` |
 
-| Campo | Tipo | Descrição |
-|---|---|---|
-| `id` | string | |
-| `nome` | string | |
-| `valor` | number | valor da mão de obra (R$), **não inclui peças** |
-| `pecas` | `{produtoId, qtd}[]` | peças vinculadas ao serviço; o preço final exibido soma `valor` + custo de venda dessas peças |
-| `ativo` | boolean | exclusão lógica |
+O preço exibido é `valor` + a soma do preço de **venda** das peças vinculadas.
 
 ## `clientes`
 
-| Campo | Tipo | Descrição |
-|---|---|---|
-| `id` | string | |
-| `nome` | string | |
-| `tel` | string | WhatsApp |
-| `placa` | string | sempre salva em maiúsculas |
-| `moto` | string | modelo da moto |
-| `ativo` | boolean | (`undefined`/`true` = ativo; só fica `false` quando excluído) |
-
-## `os` (Ordens de Serviço) e `orcamentos`
-
-Mesmo formato de objeto; a diferença é só em qual array (`db.os` vs.
-`db.orcamentos`) e no ciclo de vida (orçamento não debita estoque nem tem
-`status`/pagamento até virar OS).
-
-| Campo | Tipo | Descrição |
-|---|---|---|
-| `id` | string | |
-| `clienteId` | string | FK para `clientes` |
-| `data` | string (ISO) | data de criação |
-| `itens` | `{tipo, itemId, nome, qtd, total}[]` | `tipo` é `'produto'` ou `'servico'`; `total` já vem calculado (inclui peças vinculadas se for serviço) |
-| `valorTotal` | number | soma dos itens, editável manualmente no modal |
-| `status` | string | só existe em `os`: `'Pendente'` \| `'Andamento'` \| `'Concluída'` \| `'Cancelada'` |
-| `estoqueDebitado` | boolean | trava para não debitar estoque duas vezes (ver regra em `FUNCIONALIDADES.md`) |
-| `valorPago` | number | acumulado; se `< valorTotal` quando `status='Concluída'`, gera pendência financeira |
-| `tempoGasto` | number | minutos, usado só na análise de lucratividade por hora |
-
-## `transacoes` (Caixa)
-
-| Campo | Tipo | Descrição |
-|---|---|---|
-| `id` | string | |
-| `desc` | string | descrição livre |
-| `valor` | number | sempre positivo; o sinal vem de `tipo` |
-| `tipo` | `'entrada'` \| `'saida'` | |
-| `data` | string (ISO) | |
-| `clienteNome` | string | nome "congelado" no momento (não é FK, é snapshot — se o cliente for renomeado depois, a transação antiga mantém o nome antigo) |
-| `origemDetalhada` | string | texto livre explicando a origem (ex.: "Venda Balcão Rápida", itens de uma OS concluída) |
-
-O saldo do caixa é sempre **calculado on-the-fly**: `soma(entradas) -
-soma(saídas)` sobre todo o array `transacoes` — não existe campo de saldo
-persistido separadamente.
+`nome`, `tel`, `placa` (gravada em maiúsculas), `moto`, `ativo`.
 
 ## `fornecedores`
 
-| Campo | Tipo | Descrição |
-|---|---|---|
-| `id` | string | |
-| `nome` | string | |
-| `cnpj` | string | |
-| `tel` | string | |
-| `vendedor` | string | vendedor responsável |
-| `obs` | string | observações livres |
-| `ativo` | boolean | exclusão lógica |
+`nome`, `cnpj`, `tel`, `vendedor`, `obs`, `ativo`. Não tem vínculo com peças — é
+cadastro de contato.
 
-## Convenções gerais
+## `ordens`
 
-- **IDs**: `Date.now().toString()` na maior parte do app; na importação de
-  planilha (`importarPlanilha`) usa `Date.now()+Math.random()...` para evitar
-  colisão quando várias linhas são importadas na mesma tick.
-- **Exclusão é sempre lógica** (`ativo = false`), nunca `splice`/remoção do
-  array — histórico e vínculos antigos (ex.: uma OS antiga referenciando um
-  produto excluído) continuam íntegros.
-- **Sem validação de schema**: tudo é JS solto, sem TypeScript nem checagem em
-  runtime além dos `if(!nome) return showToast(...)` pontuais.
+OS e orçamento na mesma tabela, separados por `tipo`.
+
+| Coluna | Tipo | No app | Observação |
+|---|---|---|---|
+| `cliente_id` | TEXT | `clienteId` | referência a `clientes` |
+| `tipo` | TEXT | — | `os` ou `orcamento` |
+| `data` | TIMESTAMPTZ | `data` | criação; editar não altera |
+| `itens` | JSONB | `itens` | `[{tipo, itemId, nome, qtd, total}]` |
+| `valor_total` | NUMERIC | `valorTotal` | aceita desconto |
+| `status` | TEXT | `status` | Pendente/Andamento/Concluída/Cancelada |
+| `estoque_debitado` | BOOLEAN | `estoqueDebitado` | trava a baixa dupla |
+| `valor_pago` | NUMERIC | `valorPago` | menor que o total = pendência |
+| `tempo_gasto` | INTEGER | `tempoGasto` | minutos, para o R$/hora |
+
+`itens` guarda `nome` e `total` **congelados** no momento em que a OS foi salva.
+Mudar o preço de uma peça amanhã não reescreve o que foi cobrado ontem.
+
+## `transacoes`
+
+| Coluna | Tipo | No app | Observação |
+|---|---|---|---|
+| `descricao` | TEXT | `desc` | |
+| `valor` | NUMERIC | `valor` | sempre positivo; o sinal vem de `tipo` |
+| `tipo` | TEXT | `tipo` | `entrada` ou `saida` |
+| `cliente_nome` | TEXT | `clienteNome` | nome copiado, não referência |
+| `origem_detalhada` | TEXT | `origemDetalhada` | texto de auditoria |
+| `origem` | TEXT | `origem` | `venda` ou `os`, para o ranking |
+| `itens` | JSONB | `itens` | o que saiu, quando aplicável |
+
+`cliente_nome` é cópia de propósito: o extrato precisa mostrar o nome que valia
+no dia do lançamento, mesmo que o cliente seja renomeado ou excluído depois.
+
+O saldo nunca é armazenado — é sempre `soma(entradas) − soma(saídas)`. Saldo
+gravado é saldo que uma hora diverge.
+
+## `usuarios`
+
+`usuario`, `senha_hash` (scrypt no formato `sal:hash`). O primeiro é criado no
+boot inicial a partir de `ADMIN_USUARIO`/`ADMIN_SENHA`.
+
+## Compatibilidade com a versão 1
+
+O backup do app antigo tem exatamente a forma que `POST /api/restaurar` espera,
+incluindo o formato antigo codificado em Base64. Uma OS cujo cliente não existe
+no arquivo é ignorada, porque violaria a chave estrangeira.

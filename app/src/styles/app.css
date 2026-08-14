@@ -1,0 +1,188 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gear-900 text-slate-50;
+    padding-bottom: 80px;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply w-full mt-1.5 mb-3 rounded-xl border border-slate-600 bg-gear-700 p-3.5 text-base text-white outline-none;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    @apply border-gear-orange;
+    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2);
+  }
+
+  label {
+    @apply block text-xs font-bold uppercase tracking-wide text-slate-300;
+  }
+}
+
+@layer components {
+  .tab-content {
+    display: none;
+    @apply p-4;
+  }
+
+  .tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .bottom-nav {
+    @apply fixed inset-x-0 bottom-0 z-50 flex justify-around border-t border-gear-700 bg-gear-800;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .nav-item {
+    @apply flex flex-1 cursor-pointer flex-col items-center gap-1 py-3 text-center text-[10px] text-slate-400 transition-all;
+  }
+
+  .nav-item i {
+    @apply text-xl;
+  }
+
+  .nav-item.active {
+    @apply text-gear-orange;
+  }
+
+  .modal {
+    display: none;
+    @apply fixed inset-0 z-[100] items-end justify-center;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(4px);
+  }
+
+  .modal.active {
+    display: flex;
+    animation: bgFade 0.3s;
+  }
+
+  .modal-content {
+    @apply max-h-[90vh] w-full overflow-y-auto bg-gear-800 p-6;
+    border-radius: 24px 24px 0 0;
+    transform: translateY(100%);
+    animation: slideUp 0.3s forwards;
+  }
+
+  .btn-primary {
+    @apply flex w-full items-center justify-center gap-2 rounded-2xl p-4 text-base font-bold text-white transition-transform;
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    box-shadow: 0 4px 14px rgba(249, 115, 22, 0.3);
+  }
+
+  .btn-primary:active {
+    transform: scale(0.98);
+  }
+
+  .btn-danger {
+    @apply w-full rounded-2xl bg-red-500 p-4 text-center font-bold text-white;
+  }
+
+  .btn-secondary {
+    @apply w-full rounded-2xl bg-gear-700 p-4 text-center font-bold text-white;
+  }
+
+  .card {
+    @apply mb-3 rounded-2xl border border-gear-700 bg-gear-800 p-4;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .logo-header {
+    @apply sticky top-0 z-40 flex items-center justify-between border-b border-gear-700 bg-gear-800 p-4;
+  }
+
+  .logo-img {
+    @apply h-10 w-10 rounded-full border-2 border-gear-orange object-cover;
+  }
+
+  .toast {
+    @apply fixed left-1/2 top-20 z-[1000] w-[90%] max-w-md rounded-full bg-gear-orange px-6 py-3 text-center font-bold text-white opacity-0 transition-all;
+    transform: translateX(-50%) translateY(-20px);
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .toast.show {
+    @apply opacity-100;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .badge {
+    @apply rounded-xl bg-gear-orange px-2 py-0.5 text-[10px] font-bold text-white;
+  }
+
+  .badge-red {
+    @apply bg-red-500;
+  }
+
+  .badge-green {
+    @apply bg-green-500;
+  }
+
+  .list-item {
+    @apply flex items-center justify-between border-b border-gear-700 py-3;
+  }
+
+  .list-item:last-child {
+    @apply border-b-0;
+  }
+
+  .bar-chart {
+    @apply mt-2 h-6 overflow-hidden rounded-xl bg-gear-700;
+  }
+
+  .bar-fill {
+    @apply h-full;
+    background: linear-gradient(90deg, #ea580c, #f97316);
+    width: 0%;
+    transition: width 1s ease-out;
+  }
+
+  .sub-tab-container {
+    @apply mb-4 flex gap-2 overflow-x-auto pb-1;
+  }
+
+  .sub-tab {
+    @apply cursor-pointer whitespace-nowrap rounded-full bg-gear-700 px-4 py-2 text-sm text-slate-300;
+  }
+
+  .sub-tab.active {
+    @apply bg-gear-orange font-bold text-white;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes bgFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

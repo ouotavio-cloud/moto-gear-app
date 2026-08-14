@@ -1,5 +1,8 @@
 {
-	"appId": "com.appteste.demo",
-	"appName": "MOTO GEAR APP",
-	"webDir": "www"
+	"appId": "com.motogear.app",
+	"appName": "Moto Gear",
+	"webDir": "www",
+	"android": {
+		"allowMixedContent": false
+	}
 }

@@ -1,0 +1,47 @@
+# Blueprint do Render: cria o servidor e o banco de uma vez.
+#
+# Como usar: no painel do Render, "New" -> "Blueprint" -> aponte para este
+# repositório. As variáveis marcadas com sync:false são pedidas na hora.
+#
+# Sobre os planos gratuitos, para você decidir com os olhos abertos:
+# - `free` no web service dorme após ~15 min sem uso; a primeira tela depois
+#   disso demora cerca de um minuto para abrir.
+# - `free` no Postgres expira e é removido pelo Render depois de um tempo.
+#   Para uso de verdade na oficina, troque os dois para `starter`.
+
+services:
+  - type: web
+    name: moto-gear
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: server
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/saude
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: moto-gear-db
+          property: connectionString
+      # Assina as sessões. Gerado pelo Render; trocar desloga todo mundo.
+      - key: JWT_SECRET
+        generateValue: true
+      # Usuário inicial, criado no primeiro boot.
+      - key: ADMIN_USUARIO
+        value: admin
+      - key: ADMIN_SENHA
+        sync: false
+      # Chave do Google AI Studio para ler nota fiscal por foto.
+      # Opcional: sem ela o app funciona, só a leitura da nota fica indisponível.
+      - key: GEMINI_API_KEY
+        sync: false
+
+databases:
+  - name: moto-gear-db
+    databaseName: motogear
+    plan: free
+    region: oregon

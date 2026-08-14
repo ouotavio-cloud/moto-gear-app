@@ -1,40 +1,60 @@
-# Moto Gear App
+# Moto Gear
 
-Aplicativo de gestão para oficinas de motos ("Moto Gear Oficina"), 100% offline,
-empacotado como app Android híbrido (Capacitor/WebView).
+Sistema de gestão para oficina de motos: estoque, serviços, caixa, clientes,
+ordens de serviço, fornecedores e análises.
 
-Este repositório foi criado a partir de engenharia reversa do APK enviado
-pelo autor (`com.appteste.demo`), já que o projeto ainda não tinha código
-versionado. O conteúdo de `app/www/index.html` é exatamente o que roda dentro
-do app instalado no celular — é o código-fonte real, não uma reconstrução.
+São duas partes que trabalham juntas:
 
-## Estrutura
+- **`server/`** — API em Node/Express com Postgres. É a fonte da verdade: todo
+  cálculo de estoque, caixa e status de OS acontece aqui, dentro de transação.
+- **`app/`** — a interface. Roda no navegador (servida pelo próprio backend) e
+  também empacotada como aplicativo Android via Capacitor.
 
+O aparelho não guarda dados da oficina — só o endereço do servidor e o token da
+sessão. Trocar de celular é fazer login de novo.
+
+## Começando
+
+```bash
+# API (sobe com banco em memória se não houver DATABASE_URL)
+cd server && npm install && npm start
+
+# Interface: http://localhost:3000
 ```
-app/
-  capacitor.config.json     # appId, nome do app, pasta web (www)
-  capacitor.plugins.json    # plugins nativos usados
-  www/
-    index.html               # TODO o app: HTML + CSS + JS em um único arquivo
-    logo.jpg                 # logo exibido no cabeçalho
-docs/
-  ARQUITETURA.md            # como o app é construído e persiste dados
-  MODELO_DE_DADOS.md        # esquema de cada entidade (produtos, clientes, OS...)
-  FUNCIONALIDADES.md        # o que cada tela faz e quais funções JS implementam
+
+No primeiro boot o servidor cria o usuário inicial e imprime a senha no log
+(ou usa `ADMIN_USUARIO`/`ADMIN_SENHA` se você definir).
+
+Para mexer no visual, recompile o CSS depois de alterar classes:
+
+```bash
+cd app && npm install && npm run build:css
 ```
 
-## Como rodar/editar
+## Testes
 
-O app não tem processo de build (sem `package.json`, sem bundler). É um único
-arquivo HTML servido pelo WebView do Capacitor. Para testar mudanças rapidamente
-no navegador, basta abrir `app/www/index.html` (algumas APIs nativas, como
-compartilhar arquivo, só funcionam dentro do app Android — no navegador cai
-no fallback `navigator.share`/download direto, ver `docs/ARQUITETURA.md`).
+```bash
+cd server && npm test        # 29 testes de API e regras de negócio
+cd app && npx playwright test # 21 testes de ponta a ponta contra o servidor real
+```
 
-Para gerar um novo APK, o arquivo `app/www/index.html` (+ `logo.jpg`) precisa
-ser reempacotado com o Capacitor/ferramenta que gerou o APK original — este
-repositório guarda o código-fonte, não o pipeline de build do APK.
+Os testes da API usam PGlite — o mesmo Postgres compilado para WebAssembly —
+então o SQL exercitado é o mesmo que roda em produção, sem precisar de banco
+instalado.
 
-Leia `docs/FUNCIONALIDADES.md` antes de mexer em qualquer tela: lá estão as
-regras de negócio que não são óbvias só lendo o HTML (ex.: quando o estoque é
-debitado, como pendências financeiras são calculadas).
+## Documentação
+
+| Documento | Para quê |
+|---|---|
+| [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) | Como as peças se encaixam e por quê |
+| [`docs/MODELO_DE_DADOS.md`](docs/MODELO_DE_DADOS.md) | Tabelas e formato de cada entidade |
+| [`docs/REGRAS_DE_NEGOCIO.md`](docs/REGRAS_DE_NEGOCIO.md) | Quando o estoque sai, o que vira pendência |
+| [`docs/API.md`](docs/API.md) | Endpoints |
+| [`docs/DEPLOY.md`](docs/DEPLOY.md) | Publicar no Render e gerar o APK |
+
+## Histórico
+
+A versão 1 era um único `index.html` com os dados guardados no próprio celular.
+Ela está preservada em [`legacy/`](legacy/) para consulta. Quem vem dela leva os
+dados junto: **Configurações → Backup** no app antigo gera um arquivo que a tela
+de **Restaurar** desta versão aceita sem conversão.

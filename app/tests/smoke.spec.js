@@ -1,0 +1,406 @@
+import { test, expect } from '@playwright/test';
+import {
+  abrirLogado,
+  limparServidor,
+  cadastrarProduto,
+  cadastrarCliente,
+  irPara,
+  botaoDaAba,
+  estado,
+  coletarErros,
+  USUARIO,
+  SENHA
+} from './helpers.js';
+
+let token;
+
+test.beforeEach(async ({ request, baseURL }) => {
+  token = await limparServidor(request, baseURL);
+});
+
+/* --------------------------------- login ---------------------------------- */
+
+test('sem sessão o app mostra a tela de login', async ({ page }) => {
+  const erros = coletarErros(page);
+  await page.goto('/');
+  await expect(page.locator('body')).toHaveAttribute('data-pronto', 'sim');
+  await expect(page.locator('#tela-login')).toHaveClass(/active/);
+  expect(erros).toEqual([]);
+});
+
+test('login com senha errada mostra o motivo e não entra', async ({ page, baseURL }) => {
+  await page.goto('/');
+  await page.fill('#login-servidor', baseURL);
+  await page.fill('#login-usuario', USUARIO);
+  await page.fill('#login-senha', 'errada');
+  await page.locator('#tela-login').getByRole('button', { name: /Entrar/ }).click();
+
+  await expect(page.locator('#login-erro')).toContainText('incorretos');
+  await expect(page.locator('#tela-login')).toHaveClass(/active/);
+});
+
+test('login correto abre o app', async ({ page, baseURL }) => {
+  const erros = coletarErros(page);
+  await page.goto('/');
+  await page.fill('#login-servidor', baseURL);
+  await page.fill('#login-usuario', USUARIO);
+  await page.fill('#login-senha', SENHA);
+  await page.locator('#tela-login').getByRole('button', { name: /Entrar/ }).click();
+
+  await expect(page.locator('#tela-login')).not.toHaveClass(/active/);
+  await expect(page.locator('#dash-saldo')).toHaveText('R$ 0,00');
+  expect(erros).toEqual([]);
+});
+
+/* -------------------------------- navegação -------------------------------- */
+
+test('navega por todas as abas sem erro', async ({ page, baseURL }) => {
+  const erros = await abrirLogado(page, baseURL, token);
+
+  for (const [rotulo, id] of [
+    ['Estoque', 'tab-estoque'],
+    ['Serviços', 'tab-servicos'],
+    ['Caixa', 'tab-caixa'],
+    ['Clientes', 'tab-clientes'],
+    ['Fornec.', 'tab-fornecedores'],
+    ['Análises', 'tab-analises'],
+    ['Início', 'tab-inicio']
+  ]) {
+    await irPara(page, rotulo);
+    await expect(page.locator(`#${id}`)).toHaveClass(/active/);
+  }
+  expect(erros).toEqual([]);
+});
+
+/* --------------------------------- estoque --------------------------------- */
+
+test('cadastrar peça grava no servidor e lança a compra no caixa', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  await cadastrarProduto(page, { nome: 'Pastilha de freio', custo: 20, venda: 45, qtd: 10 });
+
+  await expect(page.locator('#lista-estoque')).toContainText('Pastilha de freio');
+
+  const { produtos, transacoes } = await estado(page);
+  expect(produtos).toHaveLength(1);
+  expect(produtos[0]).toMatchObject({ nome: 'Pastilha de freio', qtd: 10, custo: 20, venda: 45 });
+  expect(transacoes[0]).toMatchObject({ tipo: 'saida', valor: 200 });
+
+  await irPara(page, 'Início');
+  await expect(page.locator('#dash-itens')).toHaveText('10');
+  await expect(page.locator('#dash-saldo')).toHaveText('-R$ 200,00');
+});
+
+test('os botões +/- ajustam o estoque na hora', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  await cadastrarProduto(page, { nome: 'Vela', custo: 10, venda: 25, qtd: 3 });
+
+  await page.locator('#lista-estoque button', { hasText: '+' }).first().click();
+  await expect(page.locator('#lista-estoque')).toContainText('4');
+
+  await page.locator('#lista-estoque button', { hasText: '-' }).first().click();
+  await expect(page.locator('#lista-estoque')).toContainText('3');
+
+  const { produtos } = await estado(page);
+  expect(produtos[0].qtd).toBe(3);
+});
+
+test('alerta de estoque baixo aparece no início', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  await cadastrarProduto(page, { nome: 'Cabo acelerador', custo: 8, venda: 20, qtd: 1, min: 2 });
+
+  await irPara(page, 'Início');
+  await expect(page.locator('#dash-alertas')).toContainText('Cabo acelerador');
+  await expect(page.locator('#dash-alertas')).toContainText('Restam: 1');
+});
+
+test('nome com aspas e sinal de maior não quebra a tela', async ({ page, baseURL }) => {
+  const erros = await abrirLogado(page, baseURL, token);
+  await cadastrarProduto(page, { nome: 'Kit "reforçado" <novo>' });
+
+  await expect(page.locator('#lista-estoque')).toContainText('Kit "reforçado" <novo>');
+  expect(erros).toEqual([]);
+});
+
+/* ---------------------------------- caixa ---------------------------------- */
+
+test('venda de balcão baixa o estoque e credita o caixa', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  await cadastrarProduto(page, { nome: 'Filtro de óleo', custo: 12, venda: 30, qtd: 8 });
+
+  await irPara(page, 'Caixa');
+  await botaoDaAba(page, 'caixa', /VENDER/).click();
+  await page.fill('#venda-qtd', '3');
+  await page.locator('#modal-venda').getByRole('button', { name: 'Vender' }).click();
+  await expect(page.locator('#modal-venda')).not.toHaveClass(/active/);
+
+  // 8 unidades a 12 de custo saíram como despesa; a venda soma 90 de entrada.
+  await expect(page.locator('#caixa-saldo')).toHaveText('-R$ 6,00');
+
+  const { produtos } = await estado(page);
+  expect(produtos[0].qtd).toBe(5);
+});
+
+test('venda acima do estoque é recusada pelo servidor', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  await cadastrarProduto(page, { nome: 'Corrente', custo: 50, venda: 120, qtd: 2 });
+
+  await irPara(page, 'Caixa');
+  await botaoDaAba(page, 'caixa', /VENDER/).click();
+  await page.fill('#venda-qtd', '5');
+  await page.locator('#modal-venda').getByRole('button', { name: 'Vender' }).click();
+
+  await expect(page.locator('#toast')).toContainText('Estoque insuficiente');
+
+  const { produtos } = await estado(page);
+  expect(produtos[0].qtd).toBe(2);
+});
+
+test('despesa manual entra como saída', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  await irPara(page, 'Caixa');
+  await botaoDaAba(page, 'caixa', /DESPESA/).click();
+  await page.fill('#despesa-desc', 'Aluguel');
+  await page.fill('#despesa-valor', '1500');
+  await page.locator('#modal-despesa').getByRole('button', { name: 'Lançar' }).click();
+
+  await expect(page.locator('#caixa-saldo')).toHaveText('-R$ 1.500,00');
+  await expect(page.locator('#lista-transacoes')).toContainText('Aluguel');
+});
+
+/* ------------------------------ clientes e OS ------------------------------ */
+
+test('cliente aparece na busca por placa', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  await cadastrarCliente(page, { nome: 'João da Silva', placa: 'XYZ9K88' });
+
+  await page.fill('#busca-cliente', 'xyz9');
+  await expect(page.locator('#lista-clientes')).toContainText('João da Silva');
+
+  await page.fill('#busca-cliente', 'nao-existe');
+  await expect(page.locator('#lista-clientes')).toContainText('Nenhum cliente');
+});
+
+test('ciclo completo da OS: criar, andamento debita estoque, concluir gera pendência', async ({ page, baseURL }) => {
+  const erros = await abrirLogado(page, baseURL, token);
+
+  await cadastrarProduto(page, { nome: 'Bateria', custo: 100, venda: 250, qtd: 3 });
+  await cadastrarCliente(page, { nome: 'Pedro Motoqueiro', placa: 'MOT0R01' });
+
+  await page.locator('#lista-clientes .card').first().click();
+  await expect(page.locator('#perfil-cliente')).toHaveClass(/active/);
+
+  // Nova OS com a bateria
+  await page.locator('#perfil-cliente').getByRole('button', { name: /Nova OS/ }).click();
+  await page.locator('#modal-os button', { hasText: 'ADD' }).click();
+  await expect(page.locator('#lista-itens-os')).toContainText('Bateria');
+  await page.locator('#btn-salvar-os').click();
+  await expect(page.locator('#modal-os')).not.toHaveClass(/active/);
+
+  let dados = await estado(page);
+  expect(dados.os).toHaveLength(1);
+  expect(dados.os[0].status).toBe('Pendente');
+  expect(dados.produtos[0].qtd).toBe(3, 'OS pendente não debita estoque');
+
+  // Passa para "Andamento": aí sim o estoque sai
+  await page.locator('#pc-conteudo .card').first().click();
+  await page.selectOption('#os-status', 'Andamento');
+  await page.locator('#btn-salvar-os').click();
+  await expect(page.locator('#modal-os')).not.toHaveClass(/active/);
+
+  dados = await estado(page);
+  expect(dados.produtos[0].qtd).toBe(2);
+
+  // Conclui pagando só uma parte
+  await page.locator('#pc-conteudo .card').first().click();
+  await page.selectOption('#os-status', 'Concluída');
+  await page.fill('#os-valor-pago', '150');
+  await page.fill('#os-tempo-gasto', '45');
+  await page.locator('#btn-salvar-os').click();
+  await expect(page.locator('#modal-os')).not.toHaveClass(/active/);
+
+  dados = await estado(page);
+  expect(dados.os[0]).toMatchObject({ status: 'Concluída', valorPago: 150, valorTotal: 250, tempoGasto: 45 });
+
+  // A pendência de 100 aparece na aba Financeiro
+  await page.locator('#perfil-cliente .sub-tab', { hasText: 'Financeiro' }).click();
+  await expect(page.locator('#pc-conteudo')).toContainText('Deve R$ 100,00');
+
+  await page.locator('#pc-conteudo').getByRole('button', { name: /Registrar pagamento/ }).click();
+  await expect(page.locator('#pc-conteudo')).toContainText('Nenhuma pendência');
+
+  dados = await estado(page);
+  expect(dados.os[0].valorPago).toBe(250);
+  expect(erros).toEqual([]);
+});
+
+test('cliente com pendência fica destacado na lista', async ({ page, baseURL, request }) => {
+  // Monta o cenário pela API para o teste focar só na exibição.
+  const cabecalho = { Authorization: `Bearer ${token}` };
+  const produto = await (
+    await request.post(`${baseURL}/api/produtos`, { data: { nome: 'Pneu', custo: 100, venda: 300, qtd: 5 }, headers: cabecalho })
+  ).json();
+  const cliente = await (
+    await request.post(`${baseURL}/api/clientes`, { data: { nome: 'Devedor', placa: 'DEV1D23' }, headers: cabecalho })
+  ).json();
+  const os = await (
+    await request.post(`${baseURL}/api/ordens`, {
+      data: { tipo: 'os', clienteId: cliente.id, itens: [{ tipo: 'produto', itemId: produto.id, qtd: 1 }] },
+      headers: cabecalho
+    })
+  ).json();
+  await request.put(`${baseURL}/api/ordens/${os.id}`, {
+    data: { tipo: 'os', itens: [{ tipo: 'produto', itemId: produto.id, qtd: 1 }], status: 'Concluída', valorPago: 50 },
+    headers: cabecalho
+  });
+
+  await abrirLogado(page, baseURL, token);
+  await irPara(page, 'Clientes');
+  await expect(page.locator('#lista-clientes')).toContainText('deve R$ 250,00');
+});
+
+test('orçamento aprovado vira OS pendente', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  await cadastrarProduto(page, { nome: 'Amortecedor', custo: 90, venda: 220, qtd: 4 });
+  await cadastrarCliente(page, { nome: 'Cliente Orçamento' });
+
+  await page.locator('#lista-clientes .card').first().click();
+  await page.locator('#perfil-cliente').getByRole('button', { name: 'Orçamento' }).click();
+  await page.locator('#modal-os button', { hasText: 'ADD' }).click();
+  await page.locator('#btn-salvar-os').click();
+  await expect(page.locator('#modal-os')).not.toHaveClass(/active/);
+
+  await page.locator('#perfil-cliente .sub-tab', { hasText: 'Orçamentos' }).click();
+  await page.locator('#pc-conteudo .card').first().click();
+  await page.locator('#modal-os').getByRole('button', { name: /Aprovar e gerar OS/ }).click();
+  await expect(page.locator('#modal-os')).not.toHaveClass(/active/);
+
+  const dados = await estado(page);
+  expect(dados.orcamentos).toHaveLength(1);
+  expect(dados.os).toHaveLength(1);
+  expect(dados.os[0].status).toBe('Pendente');
+  expect(dados.produtos[0].qtd).toBe(4, 'aprovar orçamento não mexe no estoque');
+});
+
+test('central de OS lista as ordens ativas de todos os clientes', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  await cadastrarProduto(page, { nome: 'Lâmpada', custo: 5, venda: 15, qtd: 10 });
+  await cadastrarCliente(page, { nome: 'Cliente Central' });
+
+  await page.locator('#lista-clientes .card').first().click();
+  await page.locator('#perfil-cliente').getByRole('button', { name: /Nova OS/ }).click();
+  await page.locator('#modal-os button', { hasText: 'ADD' }).click();
+  await page.locator('#btn-salvar-os').click();
+  await page.locator('#perfil-cliente .fa-arrow-left').click();
+
+  await botaoDaAba(page, 'clientes', /Central de OS/).click();
+  await expect(page.locator('#lista-central-os')).toContainText('Cliente Central');
+  await expect(page.locator('#lista-central-os')).toContainText('Pendente');
+});
+
+/* -------------------------------- análises --------------------------------- */
+
+test('análises somam receitas, despesas e ranking de vendas', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  await cadastrarProduto(page, { nome: 'Óleo 20W50', custo: 15, venda: 35, qtd: 10 });
+
+  await irPara(page, 'Caixa');
+  await botaoDaAba(page, 'caixa', /VENDER/).click();
+  await page.fill('#venda-qtd', '2');
+  await page.locator('#modal-venda').getByRole('button', { name: 'Vender' }).click();
+  await expect(page.locator('#modal-venda')).not.toHaveClass(/active/);
+
+  await irPara(page, 'Análises');
+  await expect(page.locator('#conteudo-analises')).toContainText('R$ 70,00');
+  await expect(page.locator('#conteudo-analises')).toContainText('R$ 150,00');
+
+  await page.locator('#tab-analises .sub-tab', { hasText: 'Produtos' }).click();
+  await expect(page.locator('#conteudo-analises')).toContainText('Mais vendidos');
+  await expect(page.locator('#conteudo-analises')).toContainText('Óleo 20W50');
+});
+
+/* ------------------------------- nota fiscal -------------------------------- */
+
+test('conferência da nota fiscal lança estoque e despesa', async ({ page, baseURL }) => {
+  const erros = await abrirLogado(page, baseURL, token);
+  await cadastrarProduto(page, { nome: 'Kit relação', custo: 80, venda: 180, qtd: 2 });
+
+  // A leitura por IA é do servidor; aqui interceptamos para testar a
+  // conferência e o lançamento sem depender de chave nem de rede externa.
+  await page.route('**/api/nota-fiscal/ler', (rota) =>
+    rota.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        fornecedor: 'Distribuidora Moto Peças',
+        numero: '12345',
+        total: 500,
+        itens: [
+          { nome: 'Kit relação', qtd: 3, valorUnitario: 85 },
+          { nome: 'Vela NGK', qtd: 10, valorUnitario: 12 }
+        ]
+      })
+    })
+  );
+
+  await page.locator('header .fa-receipt').click();
+  await page.setInputFiles('#nota-upload', {
+    name: 'nota.jpg',
+    mimeType: 'image/jpeg',
+    // JPEG mínimo válido de 1x1 pixel.
+    buffer: Buffer.from(
+      '/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==',
+      'base64'
+    )
+  });
+
+  await expect(page.locator('#modal-nota')).toHaveClass(/active/);
+  await expect(page.locator('#nf-itens')).toContainText('Kit relação');
+  await expect(page.locator('#nf-itens')).toContainText('Vela NGK');
+  // O item já existente precisa vir pré-vinculado à peça do estoque.
+  await expect(page.locator('#nf-0-produto')).not.toHaveValue('');
+
+  await page.locator('#modal-nota').getByRole('button', { name: /Confirmar entrada/ }).click();
+  await expect(page.locator('#modal-nota')).not.toHaveClass(/active/);
+
+  const { produtos, transacoes, fornecedores } = await estado(page);
+  expect(produtos.find((p) => p.nome === 'Kit relação').qtd).toBe(5);
+  expect(produtos.find((p) => p.nome === 'Vela NGK').qtd).toBe(10);
+  expect(transacoes.filter((t) => t.desc.startsWith('Compra de peças'))).toHaveLength(1);
+  expect(fornecedores.some((f) => f.nome === 'Distribuidora Moto Peças')).toBe(true);
+  expect(erros).toEqual([]);
+});
+
+/* --------------------------- fornecedores e sessão -------------------------- */
+
+test('cadastro de fornecedor aparece na lista', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  await irPara(page, 'Fornec.');
+  await page.locator('#tab-fornecedores .fa-plus').click();
+  await page.fill('#forn-nome', 'Auto Peças Central');
+  await page.fill('#forn-cnpj', '12.345.678/0001-90');
+  await page.locator('#modal-fornecedor').getByRole('button', { name: 'Salvar' }).click();
+
+  await expect(page.locator('#lista-fornecedores')).toContainText('Auto Peças Central');
+});
+
+test('sair da conta volta para a tela de login', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  page.on('dialog', (dialogo) => dialogo.accept());
+
+  await page.locator('header .fa-cog').click();
+  await page.locator('#modal-config').getByRole('button', { name: /Sair da conta/ }).click();
+
+  await expect(page.locator('#tela-login')).toHaveClass(/active/);
+});
+
+test('token inválido derruba para o login em vez de travar', async ({ page, baseURL }) => {
+  await page.addInitScript(
+    ([url]) => {
+      localStorage.setItem('motogear_servidor', url);
+      localStorage.setItem('motogear_token', 'token-invalido');
+    },
+    [baseURL]
+  );
+  await page.goto('/');
+  await expect(page.locator('#tela-login')).toHaveClass(/active/);
+});
