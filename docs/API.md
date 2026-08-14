@@ -14,6 +14,7 @@ para ser mostrada ao usuário. Status 500 é o único genérico; o resto explica
 | `POST` | `/auth/login` | `{usuario, senha}` → `{token}` (30 dias) |
 | `POST` | `/auth/cadastro` | `{usuario, senha}` → cria a conta e já devolve `{token}`. Usuário com 3+ caracteres, senha com 6+ |
 | `GET` | `/auth/eu` | Quem está logado |
+| `GET` | `/auth/usuarios` | Lista `{usuario, criado_em}` de todos os usuários com conta |
 | `POST` | `/auth/senha` | `{senhaAtual, senhaNova}` |
 
 ## Estado

@@ -67,6 +67,17 @@ test('cadastro recusa senha curta', async () => {
   assert.equal(resposta.status, 400);
 });
 
+test('lista de usuários mostra quem tem conta e exige login', async () => {
+  const semToken = await api('GET', '/auth/usuarios', undefined, { semToken: true });
+  assert.equal(semToken.status, 401);
+
+  const { status, corpo } = await api('GET', '/auth/usuarios');
+  assert.equal(status, 200);
+  const nomes = corpo.map((u) => u.usuario);
+  assert.ok(nomes.includes(USUARIO));
+  assert.ok(nomes.includes('novo-mecanico'));
+});
+
 /* -------------------------------- cadastros ------------------------------- */
 
 test('cadastrar peça com estoque inicial lança a compra como despesa', async () => {

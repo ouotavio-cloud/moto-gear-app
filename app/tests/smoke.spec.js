@@ -414,6 +414,13 @@ test('cadastro de fornecedor aparece na lista', async ({ page, baseURL }) => {
   await expect(page.locator('#lista-fornecedores')).toContainText('Auto Peças Central');
 });
 
+test('configurações mostra a lista de usuários da oficina', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  await page.locator('header .fa-cog').click();
+
+  await expect(page.locator('#cfg-usuarios-lista')).toContainText(USUARIO);
+});
+
 test('sair da conta volta para a tela de login', async ({ page, baseURL }) => {
   await abrirLogado(page, baseURL, token);
   page.on('dialog', (dialogo) => dialogo.accept());

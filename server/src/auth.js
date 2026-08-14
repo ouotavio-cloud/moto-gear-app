@@ -3,7 +3,7 @@
 import { randomBytes, randomUUID, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import jwt from 'jsonwebtoken';
-import { query, uma } from './db.js';
+import { query, uma, todas } from './db.js';
 
 const scrypt = promisify(scryptCb);
 const VALIDADE = '30d';
@@ -94,6 +94,8 @@ export function exigirLogin(req, res, next) {
     res.status(401).json({ erro: 'Sessão expirada. Entre novamente.' });
   }
 }
+
+export const listarUsuarios = () => todas('SELECT usuario, criado_em FROM usuarios ORDER BY criado_em');
 
 export async function trocarSenha(usuarioId, senhaAtual, senhaNova) {
   const registro = await uma('SELECT senha_hash FROM usuarios WHERE id = $1', [usuarioId]);

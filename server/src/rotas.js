@@ -1,7 +1,7 @@
 /** Rotas da API. */
 
 import { Router } from 'express';
-import { autenticar, cadastrarUsuario, exigirLogin, trocarSenha } from './auth.js';
+import { autenticar, cadastrarUsuario, exigirLogin, listarUsuarios, trocarSenha } from './auth.js';
 import * as negocio from './negocio.js';
 import * as cadastros from './cadastros.js';
 import { lerNotaFiscal, iaDisponivel } from './ia.js';
@@ -42,6 +42,11 @@ export function criarRotas() {
   api.use(exigirLogin);
 
   api.get('/auth/eu', (req, res) => res.json({ usuario: req.usuario.usuario }));
+
+  api.get(
+    '/auth/usuarios',
+    rota(async (_req, res) => res.json(await listarUsuarios()))
+  );
 
   api.post(
     '/auth/senha',
