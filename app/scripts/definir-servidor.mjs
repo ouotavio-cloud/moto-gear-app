@@ -1,21 +1,24 @@
 /**
- * Grava em `www/servidor.js` o endereço padrão do servidor.
+ * Grava em `www/servidor.js` o endereço padrão do servidor e, quando há URL,
+ * configura o Capacitor para carregar a interface direto do servidor.
  *
- * O APK não tem uma origem para herdar, então precisa saber de fábrica onde
- * fica a API. Rode antes de `npx cap sync android`:
+ * Com `server.url` no Capacitor, o WebView busca o HTML/JS/CSS do Render em
+ * vez de usar os arquivos embutidos no APK. Resultado: o app atualiza sozinho
+ * sempre que o servidor é redeployado, sem precisar gerar um APK novo.
  *
  *   MOTOGEAR_SERVIDOR=https://sua-oficina.onrender.com node scripts/definir-servidor.mjs
  *
- * Sem a variável, o arquivo volta ao padrão "mesma origem", que é o certo para
- * a versão web servida pelo próprio backend.
+ * Sem a variável, o arquivo volta ao padrão "mesma origem" e o Capacitor
+ * carrega do pacote local (comportamento normal para dev/web).
  */
 
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
-const DESTINO = join(AQUI, '..', 'www', 'servidor.js');
+const DESTINO_JS = join(AQUI, '..', 'www', 'servidor.js');
+const DESTINO_CAP = join(AQUI, '..', 'capacitor.config.json');
 
 const url = (process.env.MOTOGEAR_SERVIDOR ?? '').trim().replace(/\/+$/, '');
 
@@ -36,5 +39,16 @@ const conteudo = `/**
 window.MOTOGEAR_SERVIDOR = ${JSON.stringify(url)};
 `;
 
-await writeFile(DESTINO, conteudo);
+await writeFile(DESTINO_JS, conteudo);
 console.log(url ? `Servidor do app definido como ${url}` : 'Servidor do app: mesma origem (web)');
+
+const capConfig = JSON.parse(await readFile(DESTINO_CAP, 'utf8'));
+
+if (url) {
+  capConfig.server = { url, cleartext: false };
+} else {
+  delete capConfig.server;
+}
+
+await writeFile(DESTINO_CAP, JSON.stringify(capConfig, null, '\t') + '\n');
+console.log(url ? `Capacitor: WebView carrega de ${url}` : 'Capacitor: WebView carrega do pacote local');
