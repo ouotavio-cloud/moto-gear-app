@@ -7,13 +7,15 @@ import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
+import com.getcapacitor.PermissionState
 import com.getcapacitor.annotation.Permission
 import com.getcapacitor.annotation.PermissionCallback
 import br.com.uol.pagseguro.plugpagservice.wrapper.PlugPag
 import br.com.uol.pagseguro.plugpagservice.wrapper.PlugPagActivationData
+import br.com.uol.pagseguro.plugpagservice.wrapper.PlugPagEventData
+import br.com.uol.pagseguro.plugpagservice.wrapper.PlugPagEventListener
 import br.com.uol.pagseguro.plugpagservice.wrapper.PlugPagPaymentData
 import br.com.uol.pagseguro.plugpagservice.wrapper.PlugPagTransactionResult
-import br.com.uol.pagseguro.plugpagservice.wrapper.PlugPagEventData
 
 @CapacitorPlugin(
     name = "PlugPag",
@@ -43,8 +45,8 @@ class PlugPagPlugin : Plugin() {
             if (codigoAtivacao.isNotEmpty()) {
                 val activationData = PlugPagActivationData(codigoAtivacao)
                 val result = plugPag!!.initializeAndActivatePinpad(activationData)
-                if (result != PlugPag.RET_OK) {
-                    call.reject("Falha ao ativar a maquininha. Código: $result")
+                if (result.result != PlugPag.RET_OK) {
+                    call.reject("Falha ao ativar a maquininha. Código: ${result.result} - ${result.errorMessage ?: ""}")
                     return
                 }
             }
@@ -112,12 +114,14 @@ class PlugPagPlugin : Plugin() {
                     "MOTOGEAR${System.currentTimeMillis()}"
                 )
 
-                plugPag!!.setEventListener { eventData ->
-                    val evento = JSObject()
-                    evento.put("codigo", eventData.eventCode)
-                    evento.put("mensagem", eventData.customMessage ?: "")
-                    notifyListeners("plugpagEvento", evento)
-                }
+                plugPag!!.setEventListener(object : PlugPagEventListener {
+                    override fun onEvent(eventData: PlugPagEventData) {
+                        val evento = JSObject()
+                        evento.put("codigo", eventData.eventCode)
+                        evento.put("mensagem", eventData.customMessage ?: "")
+                        notifyListeners("plugpagEvento", evento)
+                    }
+                })
 
                 val resultado: PlugPagTransactionResult = plugPag!!.doPayment(paymentData)
 
@@ -166,7 +170,7 @@ class PlugPagPlugin : Plugin() {
 
     private fun temPermissoes(): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            return getPermissionState("bluetooth") == "granted"
+            return getPermissionState("bluetooth") == PermissionState.GRANTED
         }
         return true
     }
