@@ -205,7 +205,9 @@ test('venda de balcão baixa o estoque e credita o caixa', async ({ page, baseUR
 
   await irPara(page, 'Caixa');
   await botaoDaAba(page, 'caixa', /VENDER/).click();
-  await page.fill('#venda-qtd', '3');
+  await page.fill('#venda-add-qtd', '3');
+  await page.locator('#modal-venda button', { hasText: 'ADD' }).click();
+  await expect(page.locator('#lista-itens-venda')).toContainText('Filtro de óleo');
   await page.locator('#modal-venda').getByRole('button', { name: 'Vender' }).click();
   await expect(page.locator('#modal-venda')).not.toHaveClass(/active/);
 
@@ -222,7 +224,8 @@ test('venda acima do estoque é recusada pelo servidor', async ({ page, baseURL 
 
   await irPara(page, 'Caixa');
   await botaoDaAba(page, 'caixa', /VENDER/).click();
-  await page.fill('#venda-qtd', '5');
+  await page.fill('#venda-add-qtd', '5');
+  await page.locator('#modal-venda button', { hasText: 'ADD' }).click();
   await page.locator('#modal-venda').getByRole('button', { name: 'Vender' }).click();
 
   await expect(page.locator('#toast')).toContainText('Estoque insuficiente');
@@ -381,7 +384,8 @@ test('análises somam receitas, despesas e ranking de vendas', async ({ page, ba
 
   await irPara(page, 'Caixa');
   await botaoDaAba(page, 'caixa', /VENDER/).click();
-  await page.fill('#venda-qtd', '2');
+  await page.fill('#venda-add-qtd', '2');
+  await page.locator('#modal-venda button', { hasText: 'ADD' }).click();
   await page.locator('#modal-venda').getByRole('button', { name: 'Vender' }).click();
   await expect(page.locator('#modal-venda')).not.toHaveClass(/active/);
 

@@ -110,22 +110,19 @@ async function moverEstoque(tx, baixas, sinal, organizacaoId) {
 
 /* --------------------------------- vendas --------------------------------- */
 
-export function registrarVenda({ tipo, itemId, qtd }, organizacaoId) {
-  const quantidade = inteiro(qtd, 1) || 1;
-  if (!itemId) throw erro(400, 'Selecione um item.');
-  if (tipo !== 'produto' && tipo !== 'servico') throw erro(400, 'Tipo de venda inválido.');
-
+export function registrarVenda({ itens }, organizacaoId) {
   return transacao(async (tx) => {
-    const itens = [{ tipo, itemId, qtd: quantidade }];
-    const { nome, total, detalhados } = await precificar(tx, itens, organizacaoId);
+    const { total, detalhados } = await precificar(tx, itens, organizacaoId);
 
-    await moverEstoque(tx, await calcularBaixas(tx, itens, organizacaoId), -1, organizacaoId);
+    await moverEstoque(tx, await calcularBaixas(tx, detalhados, organizacaoId), -1, organizacaoId);
+
+    const resumo = detalhados.map((d) => `${d.qtd}x ${d.nome}`).join(', ');
     await lancar(tx, organizacaoId, {
-      desc: `Venda Balcão: ${nome}`,
+      desc: `Venda Balcão: ${resumo}`,
       valor: total,
       tipo: 'entrada',
       clienteNome: 'Venda Balcão Avulsa',
-      origemDetalhada: `${tipo === 'produto' ? 'Peça avulsa' : 'Serviço rápido'}: ${nome} (Qtd: ${quantidade})`,
+      origemDetalhada: resumo,
       origem: 'venda',
       itens: detalhados.map(({ tipo: t, itemId: i, nome: n, qtd: q }) => ({ tipo: t, itemId: i, nome: n, qtd: q }))
     });

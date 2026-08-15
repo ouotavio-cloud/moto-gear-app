@@ -285,14 +285,31 @@
   <!-- Venda -->
   <div id="modal-venda" class="modal">
     <div class="modal-content">
-      <h2 class="mb-4 text-xl font-bold">Registrar venda direta</h2>
-      <label>Tipo de venda</label>
-      <select id="venda-tipo" onchange="App.mudarTipoVenda()">
-        <option value="produto">Peça avulsa</option>
-        <option value="servico">Serviço rápido</option>
-      </select>
-      <label>Selecione o item</label><select id="venda-item"></select>
-      <label>Quantidade</label><input type="number" id="venda-qtd" value="1" min="1">
+      <h2 class="mb-4 text-xl font-bold">Venda de balcão</h2>
+
+      <div class="card !p-3 mb-4">
+        <label class="!text-gear-orange"><i class="fas fa-plus-circle"></i> Adicionar item</label>
+        <div class="mt-2 flex gap-2">
+          <select id="venda-add-tipo" class="!m-0 w-1/3" onchange="App.mudarTipoVenda()">
+            <option value="produto">Peça</option>
+            <option value="servico">Serviço</option>
+          </select>
+          <select id="venda-add-item" class="!m-0 flex-1"></select>
+        </div>
+        <div class="mt-2 flex gap-2">
+          <input type="number" id="venda-add-qtd" class="!m-0 flex-1" placeholder="Qtd" value="1" min="1">
+          <button class="rounded-xl bg-gear-orange px-6 font-bold text-white" onclick="App.addItemVenda()">ADD</button>
+        </div>
+      </div>
+
+      <label>Itens da venda</label>
+      <div id="lista-itens-venda" class="mb-4 max-h-40 space-y-2 overflow-y-auto"></div>
+
+      <div class="mb-4 flex items-center justify-between rounded-xl border border-gear-700 bg-gear-900 p-3">
+        <span class="font-bold text-slate-400">Total (R$):</span>
+        <span id="venda-total" class="text-xl font-bold text-gear-orange">R$ 0,00</span>
+      </div>
+
       <div class="mt-6 flex gap-3">
         <button class="btn-secondary" onclick="App.fecharModal('modal-venda')">Cancelar</button>
         <button class="btn-primary !bg-green-600 !bg-none" onclick="App.salvarVenda()"><i class="fas fa-check"></i> Vender</button>

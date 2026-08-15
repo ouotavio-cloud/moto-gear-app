@@ -217,7 +217,7 @@ test('excluir é lógico: some da listagem mas o histórico continua', async () 
 
 test('venda de peça baixa o estoque e credita o caixa', async () => {
   const produto = await criarProduto(api, { nome: 'Filtro', custo: 12, venda: 30, qtd: 8 });
-  const { status, corpo } = await api('POST', '/vendas', { tipo: 'produto', itemId: produto.id, qtd: 3 });
+  const { status, corpo } = await api('POST', '/vendas', { itens: [{ tipo: 'produto', itemId: produto.id, qtd: 3 }] });
 
   assert.equal(status, 201);
   assert.equal(corpo.total, 90);
@@ -225,7 +225,7 @@ test('venda de peça baixa o estoque e credita o caixa', async () => {
   const { produtos, transacoes } = await estado(api);
   assert.equal(produtos.find((p) => p.id === produto.id).qtd, 5);
 
-  const venda = transacoes.find((t) => t.desc === 'Venda Balcão: Filtro');
+  const venda = transacoes.find((t) => t.desc === 'Venda Balcão: 3x Filtro');
   assert.equal(venda.tipo, 'entrada');
   assert.equal(venda.valor, 90);
   assert.equal(venda.origem, 'venda');
@@ -233,7 +233,7 @@ test('venda de peça baixa o estoque e credita o caixa', async () => {
 
 test('venda acima do estoque é recusada e nada é baixado', async () => {
   const produto = await criarProduto(api, { nome: 'Corrente', custo: 50, venda: 120, qtd: 2 });
-  const { status, corpo } = await api('POST', '/vendas', { tipo: 'produto', itemId: produto.id, qtd: 5 });
+  const { status, corpo } = await api('POST', '/vendas', { itens: [{ tipo: 'produto', itemId: produto.id, qtd: 5 }] });
 
   assert.equal(status, 409);
   assert.match(corpo.erro, /Estoque insuficiente/);
@@ -250,7 +250,7 @@ test('venda de serviço baixa as peças vinculadas', async () => {
     pecas: [{ produtoId: oleo.id, qtd: 2 }]
   });
 
-  const { corpo } = await api('POST', '/vendas', { tipo: 'servico', itemId: servico.id, qtd: 1 });
+  const { corpo } = await api('POST', '/vendas', { itens: [{ tipo: 'servico', itemId: servico.id, qtd: 1 }] });
   // 40 de mão de obra + 2 unidades de óleo a 35.
   assert.equal(corpo.total, 110);
 
@@ -270,12 +270,40 @@ test('serviço sem estoque suficiente não deixa baixa pela metade', async () =>
     ]
   });
 
-  const { status } = await api('POST', '/vendas', { tipo: 'servico', itemId: servico.id, qtd: 1 });
+  const { status } = await api('POST', '/vendas', { itens: [{ tipo: 'servico', itemId: servico.id, qtd: 1 }] });
   assert.equal(status, 409);
 
   const { produtos } = await estado(api);
   assert.equal(produtos.find((p) => p.id === pastilha.id).qtd, 5, 'a pastilha não podia ter sido debitada');
   assert.equal(produtos.find((p) => p.id === parafuso.id).qtd, 1);
+});
+
+test('venda de balcão aceita peça e serviço juntos, soma o total e baixa tudo de uma vez', async () => {
+  const oleo = await criarProduto(api, { nome: 'Óleo 20W50', custo: 15, venda: 35, qtd: 10 });
+  const vela = await criarProduto(api, { nome: 'Vela de ignição', custo: 8, venda: 20, qtd: 6 });
+  const { corpo: servico } = await api('POST', '/servicos', {
+    nome: 'Troca de óleo',
+    valor: 40,
+    pecas: [{ produtoId: oleo.id, qtd: 2 }]
+  });
+
+  const { status, corpo } = await api('POST', '/vendas', {
+    itens: [
+      { tipo: 'servico', itemId: servico.id, qtd: 1 },
+      { tipo: 'produto', itemId: vela.id, qtd: 2 }
+    ]
+  });
+
+  assert.equal(status, 201);
+  // Serviço: 40 + 2x35 = 110. Peça avulsa: 2x20 = 40. Total: 150.
+  assert.equal(corpo.total, 150);
+
+  const { produtos, transacoes } = await estado(api);
+  assert.equal(produtos.find((p) => p.id === oleo.id).qtd, 8, 'óleo do serviço debitado');
+  assert.equal(produtos.find((p) => p.id === vela.id).qtd, 4, 'vela avulsa debitada');
+
+  const venda = transacoes.find((t) => t.valor === 150 && t.origem === 'venda');
+  assert.ok(venda, 'lançamento único no caixa com o total combinado');
 });
 
 test('ajuste rápido soma e subtrai uma unidade com lançamento no caixa', async () => {
