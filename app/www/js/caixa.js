@@ -4,6 +4,7 @@ import { db, req, acao } from './api.js';
 import { el, esc, moeda, showToast, abrirModal, fecharModal, setVal, int } from './ui.js';
 import { baixarOuCompartilhar } from './files.js';
 import { cobrarNoCartao, maquininhaDisponivel } from './plugpag.js';
+import { precoTotalServico } from './servicos.js';
 
 export const saldo = () => db.transacoes.reduce((acc, t) => (t.tipo === 'entrada' ? acc + t.valor : acc - t.valor), 0);
 
@@ -34,29 +35,84 @@ export function renderCaixa() {
 
 /* ------------------------------ venda balcão ------------------------------ */
 
+let itensVendaTemp = [];
+
 export function mudarTipoVenda() {
-  const tipo = el('venda-tipo').value;
+  const tipo = el('venda-add-tipo').value;
   const opcoes =
     tipo === 'produto'
-      ? db.produtos.map((p) => `<option value="${esc(p.id)}">${esc(p.nome)} (Estoque: ${p.qtd})</option>`)
-      : db.servicos.map((s) => `<option value="${esc(s.id)}">${esc(s.nome)}</option>`);
-  el('venda-item').innerHTML = opcoes.join('');
+      ? db.produtos.map((p) => `<option value="${esc(p.id)}">${esc(p.nome)} (${moeda(p.venda)} — Estoque: ${p.qtd})</option>`)
+      : db.servicos.map((s) => `<option value="${esc(s.id)}">${esc(s.nome)} (${moeda(precoTotalServico(s))})</option>`);
+  el('venda-add-item').innerHTML = opcoes.join('');
+}
+
+export function addItemVenda() {
+  const tipo = el('venda-add-tipo').value;
+  const itemId = el('venda-add-item').value;
+  const qtd = Math.max(1, int('venda-add-qtd'));
+  if (!itemId) return showToast('Nada para adicionar.');
+
+  let nome = '';
+  let total = 0;
+
+  if (tipo === 'produto') {
+    const produto = db.produtos.find((p) => p.id === itemId);
+    if (!produto) return showToast('Produto não encontrado.');
+    nome = produto.nome;
+    total = produto.venda * qtd;
+  } else {
+    const servico = db.servicos.find((s) => s.id === itemId);
+    if (!servico) return showToast('Serviço não encontrado.');
+    nome = servico.nome;
+    total = precoTotalServico(servico) * qtd;
+  }
+
+  itensVendaTemp.push({ tipo, itemId, nome, qtd, total });
+  setVal('venda-add-qtd', 1);
+  renderItensVenda();
+}
+
+export function remItemVenda(indice) {
+  itensVendaTemp.splice(indice, 1);
+  renderItensVenda();
+}
+
+function renderItensVenda() {
+  const total = itensVendaTemp.reduce((acc, i) => acc + i.total, 0);
+  el('lista-itens-venda').innerHTML = itensVendaTemp.length
+    ? itensVendaTemp
+        .map(
+          (item, i) => `
+        <div class="flex items-center justify-between rounded-lg border border-gear-700 bg-gear-800 p-2 text-sm">
+          <div>
+            <p class="font-bold">${item.qtd}x ${esc(item.nome)}</p>
+            <p class="text-xs text-slate-400">${moeda(item.total)}</p>
+          </div>
+          <button onclick="App.remItemVenda(${i})" class="text-red-500"><i class="fas fa-trash"></i></button>
+        </div>`
+        )
+        .join('')
+    : '<p class="text-sm text-slate-500">Nenhum item adicionado.</p>';
+
+  el('venda-total').textContent = moeda(total);
 }
 
 export function abrirModalVenda() {
-  setVal('venda-qtd', 1);
+  itensVendaTemp = [];
+  setVal('venda-add-qtd', 1);
   mudarTipoVenda();
+  renderItensVenda();
   el('btn-venda-cartao')?.classList.toggle('hidden', !maquininhaDisponivel());
   abrirModal('modal-venda');
 }
 
-export async function salvarVenda() {
-  const tipo = el('venda-tipo').value;
-  const itemId = el('venda-item').value;
-  const qtd = Math.max(1, int('venda-qtd'));
-  if (!itemId) return showToast('Selecione um item.');
+const totalVenda = () => itensVendaTemp.reduce((acc, i) => acc + i.total, 0);
+const itensParaEnvio = () => itensVendaTemp.map(({ tipo, itemId, qtd }) => ({ tipo, itemId, qtd }));
 
-  const { ok, resultado } = await acao(req('POST', '/vendas', { tipo, itemId, qtd }));
+export async function salvarVenda() {
+  if (!itensVendaTemp.length) return showToast('Adicione ao menos um item.');
+
+  const { ok, resultado } = await acao(req('POST', '/vendas', { itens: itensParaEnvio() }));
   if (ok) {
     fecharModal('modal-venda');
     showToast(`Venda registrada — ${moeda(resultado.total)}`);
@@ -64,20 +120,15 @@ export async function salvarVenda() {
 }
 
 export async function venderNoCartao() {
-  const tipo = el('venda-tipo').value;
-  const itemId = el('venda-item').value;
-  const qtd = Math.max(1, int('venda-qtd'));
-  if (!itemId) return showToast('Selecione um item.');
+  if (!itensVendaTemp.length) return showToast('Adicione ao menos um item.');
 
-  const item = tipo === 'produto' ? db.produtos.find((p) => p.id === itemId) : db.servicos.find((s) => s.id === itemId);
-  if (!item) return showToast('Item não encontrado.');
-
-  const valor = tipo === 'produto' ? item.venda * qtd : (item.valor ?? 0) * qtd;
+  const valor = totalVenda();
   if (valor <= 0) return showToast('Valor inválido.');
 
-  const resultado = await cobrarNoCartao(valor, `${qtd}x ${item.nome}`);
+  const descricao = itensVendaTemp.map((i) => `${i.qtd}x ${i.nome}`).join(', ');
+  const resultado = await cobrarNoCartao(valor, descricao);
   if (resultado?.aprovado) {
-    const { ok, resultado: vendaRes } = await acao(req('POST', '/vendas', { tipo, itemId, qtd }));
+    const { ok, resultado: vendaRes } = await acao(req('POST', '/vendas', { itens: itensParaEnvio() }));
     if (ok) {
       fecharModal('modal-venda');
       showToast(`Venda no cartão — ${moeda(vendaRes.total)}`);

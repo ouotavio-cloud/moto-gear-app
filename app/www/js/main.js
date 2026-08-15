@@ -173,6 +173,8 @@ const App = {
   renderCaixa: caixa.renderCaixa,
   abrirModalVenda: caixa.abrirModalVenda,
   mudarTipoVenda: caixa.mudarTipoVenda,
+  addItemVenda: caixa.addItemVenda,
+  remItemVenda: caixa.remItemVenda,
   salvarVenda: caixa.salvarVenda,
   abrirModalDespesa: caixa.abrirModalDespesa,
   salvarDespesa: caixa.salvarDespesa,

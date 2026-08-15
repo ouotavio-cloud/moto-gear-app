@@ -62,7 +62,7 @@ Mesma forma para `produtos`, `servicos`, `clientes` e `fornecedores`:
 | Método | Rota | Corpo |
 |---|---|---|
 | `POST` | `/produtos/:id/ajuste` | `{delta: 1 \| -1}` |
-| `POST` | `/vendas` | `{tipo, itemId, qtd}` → `{total}` |
+| `POST` | `/vendas` | `{itens: [{tipo, itemId, qtd}]}` → `{total}` |
 | `POST` | `/despesas` | `{desc, valor}` |
 | `DELETE` | `/transacoes` | apaga o histórico do caixa |
 
