@@ -49,6 +49,8 @@ let urlNovoApk = null;
  */
 export async function verificarAtualizacao() {
   try {
+    if (buildInstalado() === 0) return;
+
     const release = await ultimoRelease();
     if (!release) return;
 
