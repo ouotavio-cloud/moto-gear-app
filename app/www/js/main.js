@@ -18,6 +18,7 @@ import * as barcode from './barcode.js';
 import * as notafiscal from './notafiscal.js';
 import * as configuracoes from './config.js';
 import * as plugpag from './plugpag.js';
+import * as pix from './pix.js';
 import { renderDashboard } from './dashboard.js';
 
 /* --------------------------------- sessão --------------------------------- */
@@ -176,6 +177,7 @@ const App = {
   addItemVenda: caixa.addItemVenda,
   remItemVenda: caixa.remItemVenda,
   salvarVenda: caixa.salvarVenda,
+  venderNoPix: caixa.venderNoPix,
   abrirModalDespesa: caixa.abrirModalDespesa,
   salvarDespesa: caixa.salvarDespesa,
   exportarCaixaCSV: caixa.exportarCaixaCSV,
@@ -240,7 +242,13 @@ const App = {
   fecharPlugPag: plugpag.fecharPlugPag,
   venderNoCartao: caixa.venderNoCartao,
   cobrarOSnoCartao: os.cobrarOSnoCartao,
-  cobrarPendenciaCartao: clientes.cobrarPendenciaCartao
+  cobrarPendenciaCartao: clientes.cobrarPendenciaCartao,
+
+  // Pix (copia e cola + QR)
+  salvarPix: configuracoes.salvarPix,
+  copiarPix: pix.copiarPix,
+  confirmarRecebimentoPix: pix.confirmarRecebimentoPix,
+  fecharPix: pix.fecharPix
 };
 
 window.App = App;

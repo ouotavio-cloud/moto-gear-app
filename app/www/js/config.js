@@ -2,6 +2,7 @@
 
 import { req, servidor, setServidor, sair } from './api.js';
 import { el, esc, showToast, abrirModal, fecharModal, setVal, txt, num } from './ui.js';
+import { setConfigPix } from './pix.js';
 
 const CHAVE_MARGEM = 'motogear_margem';
 
@@ -27,13 +28,39 @@ export function abrirConfig() {
 async function renderOrganizacao() {
   const nomeEl = el('cfg-oficina-nome');
   const codigoWrap = el('cfg-codigo-convite-wrap');
+  const pixWrap = el('cfg-pix-wrap');
   try {
     const organizacao = await req('GET', '/auth/organizacao');
     nomeEl.textContent = organizacao.nome;
     codigoWrap.classList.toggle('hidden', !organizacao.souChefe);
     if (organizacao.souChefe) el('cfg-codigo-convite').textContent = organizacao.codigoConvite;
+
+    // Guarda a chave Pix pra que o botão Pix da venda já saiba se está configurada.
+    setConfigPix(organizacao.pix);
+    // Editar a chave é só do chefe; o funcionário usa a chave, mas não a altera.
+    pixWrap.classList.toggle('hidden', !organizacao.souChefe);
+    if (organizacao.souChefe) {
+      setVal('cfg-pix-chave', organizacao.pix?.chave ?? '');
+      setVal('cfg-pix-nome', organizacao.pix?.nome ?? '');
+      setVal('cfg-pix-cidade', organizacao.pix?.cidade ?? '');
+    }
   } catch (err) {
     nomeEl.textContent = err.message;
+  }
+}
+
+export async function salvarPix() {
+  const chave = txt('cfg-pix-chave');
+  const nome = txt('cfg-pix-nome');
+  const cidade = txt('cfg-pix-cidade');
+  if (!chave) return showToast('Informe a chave Pix.');
+
+  try {
+    const { pix } = await req('POST', '/auth/organizacao/pix', { chave, nome, cidade });
+    setConfigPix(pix);
+    showToast('Chave Pix salva!');
+  } catch (err) {
+    showToast(err.message);
   }
 }
 

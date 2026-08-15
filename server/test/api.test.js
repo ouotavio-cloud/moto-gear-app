@@ -145,6 +145,31 @@ test('só o chefe pode gerar um novo código de convite', async () => {
   assert.ok(corpo.codigoConvite);
 });
 
+test('chefe cadastra a chave Pix e todos da oficina passam a enxergá-la', async () => {
+  const loginFuncionario = await fetch(`${servidor.base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: 'novo-mecanico', senha: 'senha123' })
+  });
+  const { token } = await loginFuncionario.json();
+
+  // Funcionário não pode alterar a chave.
+  const negado = await apiComo(token, 'POST', '/auth/organizacao/pix', { chave: 'intruso@pix.com', nome: 'X', cidade: 'Y' });
+  assert.equal(negado.status, 403);
+
+  // Chefe salva a chave.
+  const salvo = await api('POST', '/auth/organizacao/pix', { chave: 'oficina@pix.com', nome: 'Moto Gear', cidade: 'Sao Paulo' });
+  assert.equal(salvo.status, 200);
+  assert.equal(salvo.corpo.pix.chave, 'oficina@pix.com');
+
+  // Funcionário lê a chave (precisa dela pra cobrar no balcão), mas o código de convite continua oculto.
+  const org = await apiComo(token, 'GET', '/auth/organizacao');
+  assert.equal(org.corpo.pix.chave, 'oficina@pix.com');
+  assert.equal(org.corpo.pix.nome, 'Moto Gear');
+  assert.equal(org.corpo.pix.cidade, 'Sao Paulo');
+  assert.equal(org.corpo.codigoConvite, null);
+});
+
 test('lista de usuários mostra só quem está na mesma oficina', async () => {
   const semToken = await api('GET', '/auth/usuarios', undefined, { semToken: true });
   assert.equal(semToken.status, 401);

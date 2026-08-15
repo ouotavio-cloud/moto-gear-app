@@ -234,6 +234,71 @@ test('venda acima do estoque é recusada pelo servidor', async ({ page, baseURL 
   expect(produtos[0].qtd).toBe(2);
 });
 
+test('venda por Pix gera QR e copia-e-cola no valor, e ao confirmar baixa estoque', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  await cadastrarProduto(page, { nome: 'Pastilha', custo: 10, venda: 25, qtd: 5 });
+
+  // Chefe cadastra a chave Pix.
+  await page.locator('header .fa-cog').click();
+  await expect(page.locator('#cfg-pix-wrap')).toBeVisible();
+  await page.fill('#cfg-pix-chave', 'oficina@pix.com');
+  await page.fill('#cfg-pix-nome', 'Moto Gear');
+  await page.fill('#cfg-pix-cidade', 'Sao Paulo');
+  await page.locator('#cfg-pix-wrap').getByRole('button', { name: /Salvar chave Pix/ }).click();
+  await expect(page.locator('#toast')).toContainText('Pix salva');
+  await page.locator('#modal-config .fa-times').click();
+
+  // Venda de 2x25 = 50 cobrada no Pix.
+  await irPara(page, 'Caixa');
+  await botaoDaAba(page, 'caixa', /VENDER/).click();
+  await page.fill('#venda-add-qtd', '2');
+  await page.locator('#modal-venda button', { hasText: 'ADD' }).click();
+  await expect(page.locator('#lista-itens-venda')).toContainText('Pastilha');
+
+  const btnPix = page.locator('#btn-venda-pix');
+  await expect(btnPix).toBeVisible(); // aparece porque há chave configurada
+  await btnPix.click();
+
+  // Modal do Pix: QR desenhado e copia-e-cola bem-formado no valor certo.
+  await expect(page.locator('#modal-pix')).toHaveClass(/active/);
+  await expect(page.locator('#pix-qr svg')).toBeVisible();
+  await expect(page.locator('#pix-valor')).toContainText('50,00');
+  const copia = await page.locator('#pix-copia').inputValue();
+  expect(copia.startsWith('000201')).toBeTruthy();
+  expect(copia).toContain('br.gov.bcb.pix');
+  expect(copia).toContain('oficina@pix.com');
+  expect(copia).toContain('5303986'); // moeda BRL
+  expect(copia).toMatch(/6304[0-9A-F]{4}$/); // termina com o CRC de 4 dígitos
+
+  // Confirmar recebimento fecha os dois modais e registra a venda.
+  await page.locator('#modal-pix').getByRole('button', { name: /Confirmar recebimento/ }).click();
+  await expect(page.locator('#modal-pix')).not.toHaveClass(/active/);
+  await expect(page.locator('#modal-venda')).not.toHaveClass(/active/);
+  await expect(page.locator('#toast')).toContainText('Venda no Pix');
+
+  const { produtos } = await estado(page);
+  expect(produtos.find((p) => p.nome === 'Pastilha').qtd).toBe(3);
+});
+
+test('sem chave Pix cadastrada, o botão Pix não aparece na venda', async ({ page, baseURL, request }) => {
+  // A chave Pix mora na organização e sobrevive ao reset de dados, então zera
+  // aqui pra não herdar a chave de um teste anterior.
+  await request.post(`${baseURL}/api/auth/organizacao/pix`, {
+    data: { chave: '', nome: '', cidade: '' },
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  await abrirLogado(page, baseURL, token);
+  await cadastrarProduto(page, { nome: 'Vela', custo: 5, venda: 15, qtd: 4 });
+
+  await irPara(page, 'Caixa');
+  await botaoDaAba(page, 'caixa', /VENDER/).click();
+  await page.fill('#venda-add-qtd', '1');
+  await page.locator('#modal-venda button', { hasText: 'ADD' }).click();
+
+  await expect(page.locator('#btn-venda-pix')).toBeHidden();
+});
+
 test('despesa manual entra como saída', async ({ page, baseURL }) => {
   await abrirLogado(page, baseURL, token);
   await irPara(page, 'Caixa');

@@ -46,7 +46,7 @@ export async function criarOrganizacao(nome) {
 }
 
 export async function obterOrganizacao(organizacaoId) {
-  return uma('SELECT nome, codigo_convite FROM organizacoes WHERE id = $1', [organizacaoId]);
+  return uma('SELECT nome, codigo_convite, pix_chave, pix_nome, pix_cidade FROM organizacoes WHERE id = $1', [organizacaoId]);
 }
 
 /** Só o chefe chama isto: o código antigo vira inválido na hora. */
@@ -54,6 +54,22 @@ export async function regenerarCodigoConvite(organizacaoId) {
   const codigoConvite = gerarCodigoConvite();
   await query('UPDATE organizacoes SET codigo_convite = $1 WHERE id = $2', [codigoConvite, organizacaoId]);
   return codigoConvite;
+}
+
+/**
+ * Configuração do Pix da oficina (chave, nome do recebedor e cidade). É o que o
+ * app usa para montar o "copia e cola" e o QR Code no valor de cada venda. Só o
+ * chefe altera. Nome e cidade entram no BR Code do Pix, que só aceita ASCII
+ * maiúsculo — a limpeza real acontece na hora de montar o código, no app.
+ */
+export async function salvarPix(organizacaoId, { chave, nome, cidade }) {
+  await query('UPDATE organizacoes SET pix_chave = $1, pix_nome = $2, pix_cidade = $3 WHERE id = $4', [
+    String(chave ?? '').trim(),
+    String(nome ?? '').trim(),
+    String(cidade ?? '').trim(),
+    organizacaoId
+  ]);
+  return obterOrganizacao(organizacaoId);
 }
 
 /* --------------------------------- usuários -------------------------------- */

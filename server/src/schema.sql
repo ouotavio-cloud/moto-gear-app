@@ -12,8 +12,18 @@ CREATE TABLE IF NOT EXISTS organizacoes (
   id              TEXT PRIMARY KEY,
   nome            TEXT NOT NULL,
   codigo_convite  TEXT UNIQUE NOT NULL,
+  pix_chave       TEXT NOT NULL DEFAULT '',
+  pix_nome        TEXT NOT NULL DEFAULT '',
+  pix_cidade      TEXT NOT NULL DEFAULT '',
   criado_em       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Bancos criados antes do Pix já têm a tabela `organizacoes` sem estas colunas.
+-- `CREATE TABLE IF NOT EXISTS` não as adiciona a uma tabela existente, então os
+-- ALTERs abaixo (idempotentes) garantem a coluna nos bancos já em produção.
+ALTER TABLE organizacoes ADD COLUMN IF NOT EXISTS pix_chave  TEXT NOT NULL DEFAULT '';
+ALTER TABLE organizacoes ADD COLUMN IF NOT EXISTS pix_nome   TEXT NOT NULL DEFAULT '';
+ALTER TABLE organizacoes ADD COLUMN IF NOT EXISTS pix_cidade TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS usuarios (
   id              TEXT PRIMARY KEY,

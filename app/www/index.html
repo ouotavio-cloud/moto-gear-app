@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="css/app.css">
   <script src="servidor.js"></script>
   <script src="vendor/xlsx.full.min.js" defer></script>
+  <script src="vendor/qrcode.min.js" defer></script>
 </head>
 <body>
 
@@ -204,6 +205,18 @@
         </div>
       </div>
 
+      <div id="cfg-pix-wrap" class="card border-l-4 border-l-teal-500 hidden">
+        <h3 class="mb-2 font-bold text-slate-300"><i class="fas fa-qrcode text-teal-400"></i> Chave Pix da oficina</h3>
+        <p class="mb-3 text-sm text-slate-400">Usada pra cobrar por Pix no balcão: o app gera o QR e o copia-e-cola no valor da venda, com o dinheiro caindo direto nessa chave.</p>
+        <label>Chave Pix (CPF/CNPJ, celular, e-mail ou aleatória)</label>
+        <input type="text" id="cfg-pix-chave" placeholder="ex.: 11999998888 ou email@dominio.com">
+        <label>Nome do recebedor (aparece pra quem paga)</label>
+        <input type="text" id="cfg-pix-nome" placeholder="ex.: Moto Gear" maxlength="25">
+        <label>Cidade</label>
+        <input type="text" id="cfg-pix-cidade" placeholder="ex.: Sao Paulo" maxlength="15">
+        <button onclick="App.salvarPix()" class="btn-primary mt-2 !bg-teal-600 !bg-none"><i class="fas fa-check"></i> Salvar chave Pix</button>
+      </div>
+
       <div class="card border-l-4 border-l-green-500">
         <h3 class="mb-2 font-bold text-slate-300">Usuários da oficina</h3>
         <p class="mb-3 text-sm text-slate-400">Quem tem conta nesta oficina.</p>
@@ -314,6 +327,31 @@
         <button class="btn-secondary" onclick="App.fecharModal('modal-venda')">Cancelar</button>
         <button class="btn-primary !bg-green-600 !bg-none" onclick="App.salvarVenda()"><i class="fas fa-check"></i> Vender</button>
         <button id="btn-venda-cartao" class="btn-primary !bg-amber-600 !bg-none hidden" onclick="App.venderNoCartao()"><i class="fas fa-credit-card"></i> Cartao</button>
+        <button id="btn-venda-pix" class="btn-primary !bg-teal-600 !bg-none hidden" onclick="App.venderNoPix()"><i class="fas fa-qrcode"></i> Pix</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pix: copia e cola + QR Code -->
+  <div id="modal-pix" class="modal">
+    <div class="modal-content">
+      <h2 class="mb-1 text-xl font-bold"><i class="fas fa-qrcode text-teal-400"></i> Cobrar no Pix</h2>
+      <p class="text-2xl font-bold text-teal-400" id="pix-valor">R$ 0,00</p>
+      <p class="mb-3 text-xs text-slate-400" id="pix-desc"></p>
+
+      <div class="flex justify-center rounded-xl bg-white p-3" id="pix-qr"></div>
+
+      <label class="mt-3">Pix copia e cola</label>
+      <textarea id="pix-copia" class="!h-20 w-full text-xs" readonly onclick="this.select()"></textarea>
+      <button class="btn-secondary mt-2 w-full" onclick="App.copiarPix()"><i class="fas fa-copy"></i> Copiar código</button>
+
+      <p class="mt-3 text-center text-xs text-slate-400">
+        Mostre o QR ao cliente ou envie o código. Confirme só depois que o Pix cair na sua conta.
+      </p>
+
+      <div class="mt-4 flex gap-3">
+        <button class="btn-secondary" onclick="App.fecharPix()">Cancelar</button>
+        <button class="btn-primary !bg-green-600 !bg-none" onclick="App.confirmarRecebimentoPix()"><i class="fas fa-check"></i> Confirmar recebimento</button>
       </div>
     </div>
   </div>

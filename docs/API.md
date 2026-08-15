@@ -33,8 +33,9 @@ mesma oficina.
 | `POST` | `/auth/cadastro/funcionario` | `{usuario, senha, codigoConvite}` → entra na oficina dona do código como funcionário; já devolve `{token}` |
 | `GET` | `/auth/eu` | Quem está logado: `{usuario, papel}` |
 | `GET` | `/auth/usuarios` | Lista `{usuario, papel, criado_em}` de todos os usuários da mesma oficina |
-| `GET` | `/auth/organizacao` | `{nome, souChefe, codigoConvite}` — `codigoConvite` só vem preenchido para o chefe |
+| `GET` | `/auth/organizacao` | `{nome, souChefe, codigoConvite, pix:{chave, nome, cidade}}` — `codigoConvite` só vem preenchido para o chefe; o `pix` vem para todos (o funcionário também cobra no balcão) |
 | `POST` | `/auth/organizacao/codigo` | Gera um novo código de convite (invalida o antigo). Só o chefe pode chamar — `403` para funcionário |
+| `POST` | `/auth/organizacao/pix` | `{chave, nome, cidade}` → `{pix}`. Salva a chave Pix da oficina, usada para montar o copia-e-cola/QR no balcão. Só o chefe — `403` para funcionário |
 | `POST` | `/auth/senha` | `{senhaAtual, senhaNova}` |
 
 Usuário com 3+ caracteres, senha com 6+ em ambas as rotas de cadastro.
