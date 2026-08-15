@@ -19,6 +19,7 @@ import * as notafiscal from './notafiscal.js';
 import * as configuracoes from './config.js';
 import * as plugpag from './plugpag.js';
 import * as pix from './pix.js';
+import { carregarConfigPix } from './pix.js';
 import * as atualizacao from './atualizacao.js';
 import { isNativo } from './files.js';
 import { renderDashboard } from './dashboard.js';
@@ -92,6 +93,7 @@ async function fazerLogin() {
     await carregarEstado();
     esconderLogin();
     renderAll();
+    carregarConfigPix();
     showToast('Bem-vindo!');
   } catch (err) {
     el('login-erro').textContent = err.message;
@@ -134,6 +136,7 @@ async function fazerCadastro() {
     await carregarEstado();
     esconderLogin();
     renderAll();
+    carregarConfigPix();
     showToast('Conta criada. Bem-vindo!');
   } catch (err) {
     el('login-erro').textContent = err.message;
@@ -279,8 +282,8 @@ async function iniciar() {
       await carregarEstado();
       esconderLogin();
       renderAll();
+      carregarConfigPix();
     } catch (err) {
-      // Token expirado já cai no fluxo de logout; aqui sobra falha de rede.
       console.error('Não consegui carregar o estado inicial', err);
       mostrarLogin();
       el('login-erro').textContent = err.message;
