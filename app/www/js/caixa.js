@@ -104,10 +104,9 @@ export async function abrirModalVenda() {
   mudarTipoVenda();
   renderItensVenda();
   el('btn-venda-cartao')?.classList.toggle('hidden', !maquininhaDisponivel());
+  el('btn-venda-pix')?.classList.toggle('hidden', !pixDisponivel());
   abrirModal('modal-venda');
 
-  // O botão Pix depende da chave cadastrada; recarrega a config a cada abertura
-  // para refletir uma chave recém-salva sem precisar reabrir o app.
   await carregarConfigPix();
   el('btn-venda-pix')?.classList.toggle('hidden', !pixDisponivel());
 }
