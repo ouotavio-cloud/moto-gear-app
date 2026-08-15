@@ -15,7 +15,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { query, todas, transacao } from './db.js';
+import { query, uma, todas, transacao } from './db.js';
 import * as mapear from './mapeadores.js';
 
 export const erro = (status, mensagem) => Object.assign(new Error(mensagem), { status });
@@ -27,13 +27,14 @@ const inteiro = (v, minimo = 0) => Math.max(minimo, Math.trunc(Number(v) || 0));
 /* --------------------------------- estado --------------------------------- */
 
 export async function estadoCompleto(organizacaoId) {
-  const [produtos, servicos, clientes, fornecedores, ordens, transacoes] = await Promise.all([
+  const [produtos, servicos, clientes, fornecedores, ordens, transacoes, org] = await Promise.all([
     todas('SELECT * FROM produtos WHERE organizacao_id = $1 AND ativo = TRUE ORDER BY nome', [organizacaoId]),
     todas('SELECT * FROM servicos WHERE organizacao_id = $1 AND ativo = TRUE ORDER BY nome', [organizacaoId]),
     todas('SELECT * FROM clientes WHERE organizacao_id = $1 AND ativo = TRUE ORDER BY nome', [organizacaoId]),
     todas('SELECT * FROM fornecedores WHERE organizacao_id = $1 AND ativo = TRUE ORDER BY nome', [organizacaoId]),
     todas('SELECT * FROM ordens WHERE organizacao_id = $1 ORDER BY data', [organizacaoId]),
-    todas('SELECT * FROM transacoes WHERE organizacao_id = $1 ORDER BY data', [organizacaoId])
+    todas('SELECT * FROM transacoes WHERE organizacao_id = $1 ORDER BY data', [organizacaoId]),
+    uma('SELECT pix_chave, pix_nome, pix_cidade FROM organizacoes WHERE id = $1', [organizacaoId])
   ]);
 
   return {
@@ -43,7 +44,8 @@ export async function estadoCompleto(organizacaoId) {
     fornecedores: fornecedores.map(mapear.fornecedor),
     os: ordens.filter((o) => o.tipo === 'os').map(mapear.ordem),
     orcamentos: ordens.filter((o) => o.tipo === 'orcamento').map(mapear.ordem),
-    transacoes: transacoes.map(mapear.transacao)
+    transacoes: transacoes.map(mapear.transacao),
+    pix: { chave: org?.pix_chave ?? '', nome: org?.pix_nome ?? '', cidade: org?.pix_cidade ?? '' }
   };
 }
 

@@ -7,6 +7,7 @@
  */
 
 import { showToast, renderAll, carregando, pararCarregando } from './ui.js';
+import { setConfigPix } from './pix.js';
 
 const CHAVE_SERVIDOR = 'motogear_servidor';
 const CHAVE_TOKEN = 'motogear_token';
@@ -133,6 +134,7 @@ export function sair() {
 export async function carregarEstado() {
   const estado = await req('GET', '/estado');
   for (const chave of Object.keys(db)) db[chave] = estado[chave] ?? [];
+  if (estado.pix) setConfigPix(estado.pix);
   return db;
 }
 
