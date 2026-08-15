@@ -3,6 +3,7 @@
 import { db, req, acao } from './api.js';
 import { el, esc, moeda, showToast, abrirModal, fecharModal, setVal, int } from './ui.js';
 import { baixarOuCompartilhar } from './files.js';
+import { cobrarNoCartao, maquininhaDisponivel } from './plugpag.js';
 
 export const saldo = () => db.transacoes.reduce((acc, t) => (t.tipo === 'entrada' ? acc + t.valor : acc - t.valor), 0);
 
@@ -45,6 +46,7 @@ export function mudarTipoVenda() {
 export function abrirModalVenda() {
   setVal('venda-qtd', 1);
   mudarTipoVenda();
+  el('btn-venda-cartao')?.classList.toggle('hidden', !maquininhaDisponivel());
   abrirModal('modal-venda');
 }
 
@@ -58,6 +60,28 @@ export async function salvarVenda() {
   if (ok) {
     fecharModal('modal-venda');
     showToast(`Venda registrada — ${moeda(resultado.total)}`);
+  }
+}
+
+export async function venderNoCartao() {
+  const tipo = el('venda-tipo').value;
+  const itemId = el('venda-item').value;
+  const qtd = Math.max(1, int('venda-qtd'));
+  if (!itemId) return showToast('Selecione um item.');
+
+  const item = tipo === 'produto' ? db.produtos.find((p) => p.id === itemId) : db.servicos.find((s) => s.id === itemId);
+  if (!item) return showToast('Item não encontrado.');
+
+  const valor = tipo === 'produto' ? item.venda * qtd : (item.valor ?? 0) * qtd;
+  if (valor <= 0) return showToast('Valor inválido.');
+
+  const resultado = await cobrarNoCartao(valor, `${qtd}x ${item.nome}`);
+  if (resultado?.aprovado) {
+    const { ok, resultado: vendaRes } = await acao(req('POST', '/vendas', { tipo, itemId, qtd }));
+    if (ok) {
+      fecharModal('modal-venda');
+      showToast(`Venda no cartão — ${moeda(vendaRes.total)}`);
+    }
   }
 }
 

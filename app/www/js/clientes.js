@@ -4,6 +4,7 @@ import { db, req, acao } from './api.js';
 import { el, esc, moeda, showToast, abrirModal, fecharModal, setVal, txt, marcarSubTab } from './ui.js';
 import { clienteAtual, setClienteAtual } from './estado.js';
 import { editarOS, abrirCentralOS } from './os.js';
+import { cobrarNoCartao, maquininhaDisponivel } from './plugpag.js';
 
 export const clientesAtivos = () => db.clientes.filter((c) => c.ativo !== false);
 
@@ -182,7 +183,10 @@ function desenharPerfil() {
             <p class="font-bold">OS #${curto(o.id)}</p>
             <p class="font-bold text-red-500">Deve ${moeda(o.valorTotal - (o.valorPago ?? 0))}</p>
           </div>
-          <button onclick="App.quitarPendencia('${esc(o.id)}')" class="btn-primary mt-2 !bg-green-600 !bg-none !p-2 !text-sm">Registrar pagamento</button>
+          <div class="mt-2 flex gap-2">
+            <button onclick="App.quitarPendencia('${esc(o.id)}')" class="btn-primary !bg-green-600 !bg-none !p-2 !text-sm">Registrar pagamento</button>
+            ${maquininhaDisponivel() ? `<button onclick="App.cobrarPendenciaCartao('${esc(o.id)}')" class="btn-primary !bg-amber-600 !bg-none !p-2 !text-sm"><i class="fas fa-credit-card"></i> Cartao</button>` : ''}
+          </div>
         </div>`
         )
         .join('')
@@ -192,6 +196,19 @@ function desenharPerfil() {
 export async function quitarPendencia(osId) {
   const { ok, resultado } = await acao(req('POST', `/os/${osId}/quitar`));
   if (ok) showToast(`Pagamento de ${moeda(resultado.valorRecebido)} registrado!`);
+}
+
+export async function cobrarPendenciaCartao(osId) {
+  const os = db.os.find((o) => o.id === osId);
+  if (!os) return showToast('OS não encontrada.');
+  const devido = os.valorTotal - (os.valorPago ?? 0);
+  if (devido <= 0) return showToast('Sem valor pendente.');
+
+  const resultado = await cobrarNoCartao(devido, `Pendência OS #${osId.slice(-4)}`);
+  if (resultado?.aprovado) {
+    const { ok, resultado: quitRes } = await acao(req('POST', `/os/${osId}/quitar`));
+    if (ok) showToast(`Pendência quitada no cartão — ${moeda(quitRes.valorRecebido)}`);
+  }
 }
 
 /** Vem da Central de OS: abre o cliente e já cai na OS clicada. */

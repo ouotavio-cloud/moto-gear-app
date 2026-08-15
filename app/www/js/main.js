@@ -17,6 +17,7 @@ import * as importar from './importar.js';
 import * as barcode from './barcode.js';
 import * as notafiscal from './notafiscal.js';
 import * as configuracoes from './config.js';
+import * as plugpag from './plugpag.js';
 import { renderDashboard } from './dashboard.js';
 
 /* --------------------------------- sessão --------------------------------- */
@@ -222,7 +223,22 @@ const App = {
   abrirLeitorNota: notafiscal.abrirLeitorNota,
   processarFotoNota: notafiscal.processarFotoNota,
   confirmarNota: notafiscal.confirmarNota,
-  cancelarNota: notafiscal.cancelarNota
+  cancelarNota: notafiscal.cancelarNota,
+
+  // Maquininha PlugPag
+  ppDebito: () => plugpag.executarCobranca('debito', 1),
+  ppCreditoVista: () => plugpag.executarCobranca('credito_vista', 1),
+  ppCreditoParc: () => plugpag.escolherParcelas(),
+  ppConfirmarParc: () => {
+    const p = parseInt(document.getElementById('pp-parcelas-qtd').value) || 2;
+    plugpag.executarCobranca('credito_parc', p);
+  },
+  ppPix: () => plugpag.executarCobranca('pix', 1),
+  abortarPagamento: plugpag.abortarPagamento,
+  fecharPlugPag: plugpag.fecharPlugPag,
+  venderNoCartao: caixa.venderNoCartao,
+  cobrarOSnoCartao: os.cobrarOSnoCartao,
+  cobrarPendenciaCartao: clientes.cobrarPendenciaCartao
 };
 
 window.App = App;
