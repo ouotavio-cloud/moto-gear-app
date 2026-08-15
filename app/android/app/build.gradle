@@ -4,12 +4,20 @@ apply plugin: 'kotlin-android'
 android {
     namespace "com.motogear.app"
     compileSdk rootProject.ext.compileSdkVersion
+
+    // Versão vem do CI a cada deploy (o mesmo número que carimba o versao.js e a
+    // tag do release, para o aviso de "nova versão" funcionar). Sem as variáveis,
+    // cai no padrão para builds locais. Fica em `def` fora do defaultConfig para
+    // evitar a ambiguidade do Groovy entre `versionCode(...)` e `.toInteger()`.
+    def buildNumero = (System.getenv("MOTOGEAR_BUILD") ?: "2").toInteger()
+    def versaoNome = System.getenv("MOTOGEAR_VERSAO") ?: "2.0.0"
+
     defaultConfig {
         applicationId "com.motogear.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "2.0.0"
+        versionCode buildNumero
+        versionName versaoNome
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -21,12 +29,16 @@ android {
     // nativas do leitor de código de barras para as quatro arquiteturas (~19 MB
     // só nisso), sendo que x86/x86_64 só aparecem em emulador. Cada celular
     // baixa apenas o que usa.
+    //
+    // Também geramos o APK universal (universalApk true): é ele que o aviso de
+    // "nova versão" baixa, por instalar em qualquer aparelho sem o app precisar
+    // adivinhar a arquitetura do celular.
     splits {
         abi {
             enable true
             reset()
             include 'arm64-v8a', 'armeabi-v7a'
-            universalApk false
+            universalApk true
         }
     }
 
