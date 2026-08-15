@@ -59,12 +59,19 @@ jobs:
     name: APK Android
     runs-on: ubuntu-latest
     needs: testes
+    outputs:
+      build: ${{ steps.versao.outputs.build }}
+      versao: ${{ steps.versao.outputs.versao }}
     env:
       # O contexto `secrets` não pode ser usado direto num `if:`, então a
       # presença da chave vira uma variável de ambiente aqui.
       TEM_CHAVE: ${{ secrets.MOTOGEAR_KEYSTORE_BASE64 != '' }}
     steps:
+      # fetch-depth: 0 traz o histórico todo — o número de build é a contagem de
+      # commits, e um clone raso contaria só 1.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -78,6 +85,16 @@ jobs:
           java-version: 21
 
       - uses: android-actions/setup-android@v3
+
+      # O número de build só cresce (contagem de commits) e vira versionCode do
+      # Android, carimbo do versao.js e tag do release — os três iguais fazem o
+      # aviso de "nova versão" funcionar.
+      - name: Calcular número de build
+        id: versao
+        run: |
+          BUILD=$(git rev-list --count HEAD)
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "versao=2.0.$BUILD" >> "$GITHUB_OUTPUT"
 
       - name: Instalar dependências do app
         working-directory: app
@@ -93,6 +110,13 @@ jobs:
           MOTOGEAR_SERVIDOR: ${{ vars.MOTOGEAR_SERVIDOR }}
         run: node scripts/definir-servidor.mjs
 
+      - name: Carimbar a versão do app
+        working-directory: app
+        env:
+          MOTOGEAR_BUILD: ${{ steps.versao.outputs.build }}
+          MOTOGEAR_VERSAO: ${{ steps.versao.outputs.versao }}
+        run: node scripts/carimbar-versao.mjs
+
       - name: Sincronizar o projeto Android
         working-directory: app
         run: npx cap sync android
@@ -107,6 +131,8 @@ jobs:
       - name: Gerar o APK
         working-directory: app/android
         env:
+          MOTOGEAR_BUILD: ${{ steps.versao.outputs.build }}
+          MOTOGEAR_VERSAO: ${{ steps.versao.outputs.versao }}
           MOTOGEAR_KEYSTORE: ${{ env.TEM_CHAVE == 'true' && format('{0}/motogear.keystore', runner.temp) || '' }}
           MOTOGEAR_KEYSTORE_SENHA: ${{ secrets.MOTOGEAR_KEYSTORE_SENHA }}
           MOTOGEAR_KEY_ALIAS: motogear
@@ -118,3 +144,32 @@ jobs:
           name: moto-gear-apk
           path: app/android/app/build/outputs/apk/release/*.apk
           retention-days: 30
+
+  # Publica o APK como release no GitHub a cada push na branch padrão. É de onde
+  # o aviso de "nova versão" dentro do app baixa a atualização.
+  release:
+    name: Publicar release
+    runs-on: ubuntu-latest
+    needs: apk
+    if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    permissions:
+      contents: write
+    steps:
+      - name: Baixar o APK gerado
+        uses: actions/download-artifact@v4
+        with:
+          name: moto-gear-apk
+          path: apk
+
+      - name: Publicar o release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD: ${{ needs.apk.outputs.build }}
+          VERSAO: ${{ needs.apk.outputs.versao }}
+        run: |
+          gh release create "build-$BUILD" apk/*.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Moto Gear $VERSAO" \
+            --notes "Atualização automática do app (build $BUILD)." \
+            --latest \
+          || gh release upload "build-$BUILD" apk/*.apk --repo "$GITHUB_REPOSITORY" --clobber

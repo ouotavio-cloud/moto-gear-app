@@ -19,6 +19,8 @@ import * as notafiscal from './notafiscal.js';
 import * as configuracoes from './config.js';
 import * as plugpag from './plugpag.js';
 import * as pix from './pix.js';
+import * as atualizacao from './atualizacao.js';
+import { isNativo } from './files.js';
 import { renderDashboard } from './dashboard.js';
 
 /* --------------------------------- sessão --------------------------------- */
@@ -248,7 +250,12 @@ const App = {
   salvarPix: configuracoes.salvarPix,
   copiarPix: pix.copiarPix,
   confirmarRecebimentoPix: pix.confirmarRecebimentoPix,
-  fecharPix: pix.fecharPix
+  fecharPix: pix.fecharPix,
+
+  // Atualização do app
+  verificarAtualizacao: atualizacao.verificarAtualizacao,
+  baixarAtualizacao: atualizacao.baixarAtualizacao,
+  adiarAtualizacao: atualizacao.adiarAtualizacao
 };
 
 window.App = App;
@@ -283,6 +290,9 @@ async function iniciar() {
   }
 
   document.body.dataset.pronto = 'sim';
+
+  // Só o APK se atualiza por download; no navegador basta recarregar a página.
+  if (isNativo()) atualizacao.verificarAtualizacao();
 }
 
 iniciar();

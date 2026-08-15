@@ -9,10 +9,20 @@
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
   <link rel="stylesheet" href="css/app.css">
   <script src="servidor.js"></script>
+  <script src="versao.js"></script>
   <script src="vendor/xlsx.full.min.js" defer></script>
   <script src="vendor/qrcode.min.js" defer></script>
 </head>
 <body>
+
+  <!-- Faixa de atualização: aparece quando há uma versão mais nova publicada -->
+  <div id="banner-atualizacao" class="hidden fixed inset-x-0 bottom-0 z-[300] border-t border-gear-700 bg-gear-800 p-3 shadow-2xl">
+    <p class="text-center text-sm font-bold text-white"><i class="fas fa-circle-arrow-up text-gear-orange"></i> Nova versão do app disponível <span id="banner-atualizacao-versao" class="text-gear-orange"></span></p>
+    <div class="mx-auto mt-2 flex max-w-sm gap-3">
+      <button class="btn-secondary" onclick="App.adiarAtualizacao()">Depois</button>
+      <button class="btn-primary !bg-green-600 !bg-none" onclick="App.baixarAtualizacao()"><i class="fas fa-download"></i> Atualizar</button>
+    </div>
+  </div>
 
   <!-- Tela de login: cobre o app enquanto não há sessão -->
   <div id="tela-login" class="modal !items-center" style="z-index: 200;">

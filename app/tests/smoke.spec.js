@@ -556,3 +556,72 @@ test('token inválido derruba para o login em vez de travar', async ({ page, bas
   await page.goto('/');
   await expect(page.locator('#tela-login')).toHaveClass(/active/);
 });
+
+/* ------------------------------ atualização ------------------------------- */
+
+test('lógica de atualização: extrai o build da tag e escolhe o APK universal', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  const r = await page.evaluate(async () => {
+    const m = await import('/js/atualizacao.js');
+    return {
+      tagBuild: m.buildDoTag('build-42'),
+      tagVersao: m.buildDoTag('v2.0.7'),
+      tagVazia: m.buildDoTag(''),
+      escolhido: m.escolherApk([
+        { name: 'app-arm64-v8a-release.apk', browser_download_url: 'a' },
+        { name: 'app-universal-release.apk', browser_download_url: 'u' }
+      ])?.browser_download_url,
+      semApk: m.escolherApk([{ name: 'notas.txt' }])
+    };
+  });
+  expect(r.tagBuild).toBe(42);
+  expect(r.tagVersao).toBe(7);
+  expect(r.tagVazia).toBe(0);
+  expect(r.escolhido).toBe('u'); // prefere o universal
+  expect(r.semApk).toBeNull();
+});
+
+test('aviso de nova versão aparece com build mais novo, e "Depois" fecha', async ({ page, baseURL }) => {
+  await page.route('https://api.github.com/**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        tag_name: 'build-999',
+        name: 'Moto Gear 2.0.999',
+        assets: [
+          { name: 'app-arm64-v8a-release.apk', browser_download_url: 'https://exemplo/arm64.apk' },
+          { name: 'app-universal-release.apk', browser_download_url: 'https://exemplo/universal.apk' }
+        ]
+      })
+    })
+  );
+
+  await abrirLogado(page, baseURL, token);
+  await expect(page.locator('#banner-atualizacao')).toBeHidden();
+
+  await page.evaluate(async () => window.App.verificarAtualizacao());
+  await expect(page.locator('#banner-atualizacao')).toBeVisible();
+  await expect(page.locator('#banner-atualizacao-versao')).toHaveText('Moto Gear 2.0.999');
+
+  await page.locator('#banner-atualizacao').getByRole('button', { name: 'Depois' }).click();
+  await expect(page.locator('#banner-atualizacao')).toBeHidden();
+});
+
+test('sem build mais novo, o aviso de atualização não aparece', async ({ page, baseURL }) => {
+  await page.route('https://api.github.com/**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        tag_name: 'build-0', // igual ao instalado (dev/web = 0)
+        name: 'atual',
+        assets: [{ name: 'app-universal-release.apk', browser_download_url: 'x' }]
+      })
+    })
+  );
+
+  await abrirLogado(page, baseURL, token);
+  await page.evaluate(async () => window.App.verificarAtualizacao());
+  await expect(page.locator('#banner-atualizacao')).toBeHidden();
+});

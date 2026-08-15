@@ -53,12 +53,27 @@ no repositório, em *Settings → Secrets and variables → Actions*:
 Com `MOTOGEAR_SERVIDOR` definida, o app já abre apontando para o seu servidor e
 ninguém precisa digitar endereço.
 
-O APK sai em **Actions → a execução → Artifacts → `moto-gear-apk`**.
+O APK sai em **Actions → a execução → Artifacts → `moto-gear-apk`** (três
+arquivos: `arm64-v8a` e `armeabi-v7a` para instalar direto, e o `universal`, que
+serve a qualquer aparelho e é o que o app baixa ao se atualizar).
 
 > **Guarde a chave `.keystore` e a senha.** O Android só aceita atualizar um app
 > instalado se a nova versão estiver assinada com a mesma chave. Perdeu a chave,
 > perdeu a possibilidade de atualizar sem desinstalar (e desinstalar não perde
 > dados aqui, porque eles estão no servidor — mas é chato).
+
+### Aviso de "nova versão" dentro do app
+
+A cada push na branch padrão, o CI publica um **release no GitHub** com os APKs e
+uma tag `build-N` (N cresce a cada deploy — é o mesmo número do `versionCode` do
+Android e do `versao.js` embutido). Quando o app abre, ele compara o build
+instalado com o do último release; se houver um mais novo, mostra a faixa
+**"Nova versão do app disponível"** com **Atualizar** (abre o download do APK
+universal — o Android instala por cima, mantendo os dados) e **Depois**.
+
+Para o release sair **instalável**, a mesma chave de assinatura acima precisa
+estar cadastrada (senão os APKs saem sem assinatura). Nada além disso precisa ser
+configurado: o release usa o `GITHUB_TOKEN` automático do próprio Actions.
 
 ### Na sua máquina
 
