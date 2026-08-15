@@ -22,7 +22,7 @@ export function criarApp() {
 
   app.use('/api', criarRotas());
 
-  app.use(express.static(PASTA_WEB, { index: 'index.html', maxAge: '1h' }));
+  app.use(express.static(PASTA_WEB, { index: 'index.html', maxAge: 0 }));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
     res.sendFile(join(PASTA_WEB, 'index.html'));

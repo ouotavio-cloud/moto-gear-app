@@ -600,7 +600,10 @@ test('aviso de nova versão aparece com build mais novo, e "Depois" fecha', asyn
   await abrirLogado(page, baseURL, token);
   await expect(page.locator('#banner-atualizacao')).toBeHidden();
 
-  await page.evaluate(async () => window.App.verificarAtualizacao());
+  await page.evaluate(async () => {
+    globalThis.MOTOGEAR_BUILD = 1;
+    await window.App.verificarAtualizacao();
+  });
   await expect(page.locator('#banner-atualizacao')).toBeVisible();
   await expect(page.locator('#banner-atualizacao-versao')).toHaveText('Moto Gear 2.0.999');
 
