@@ -10,6 +10,7 @@ import {
   listarUsuarios,
   obterOrganizacao,
   regenerarCodigoConvite,
+  salvarPix,
   trocarSenha
 } from './auth.js';
 import * as negocio from './negocio.js';
@@ -84,7 +85,18 @@ export function criarRotas() {
     rota(async (req, res) => {
       const souChefe = req.usuario.papel === 'chefe';
       const organizacao = await obterOrganizacao(req.usuario.organizacaoId);
-      res.json({ nome: organizacao.nome, codigoConvite: souChefe ? organizacao.codigo_convite : null, souChefe });
+      // O Pix vai para todos da oficina (o funcionário também cobra no balcão);
+      // só o código de convite fica restrito ao chefe.
+      res.json({
+        nome: organizacao.nome,
+        codigoConvite: souChefe ? organizacao.codigo_convite : null,
+        souChefe,
+        pix: {
+          chave: organizacao.pix_chave ?? '',
+          nome: organizacao.pix_nome ?? '',
+          cidade: organizacao.pix_cidade ?? ''
+        }
+      });
     })
   );
 
@@ -92,6 +104,15 @@ export function criarRotas() {
     '/auth/organizacao/codigo',
     exigirChefe,
     rota(async (req, res) => res.json({ codigoConvite: await regenerarCodigoConvite(req.usuario.organizacaoId) }))
+  );
+
+  api.post(
+    '/auth/organizacao/pix',
+    exigirChefe,
+    rota(async (req, res) => {
+      const organizacao = await salvarPix(req.usuario.organizacaoId, req.body ?? {});
+      res.json({ pix: { chave: organizacao.pix_chave, nome: organizacao.pix_nome, cidade: organizacao.pix_cidade } });
+    })
   );
 
   api.get(

@@ -4,6 +4,7 @@ import { db, req, acao } from './api.js';
 import { el, esc, moeda, showToast, abrirModal, fecharModal, setVal, int } from './ui.js';
 import { baixarOuCompartilhar } from './files.js';
 import { cobrarNoCartao, maquininhaDisponivel } from './plugpag.js';
+import { cobrarNoPix, pixDisponivel, carregarConfigPix } from './pix.js';
 import { precoTotalServico } from './servicos.js';
 
 export const saldo = () => db.transacoes.reduce((acc, t) => (t.tipo === 'entrada' ? acc + t.valor : acc - t.valor), 0);
@@ -97,13 +98,18 @@ function renderItensVenda() {
   el('venda-total').textContent = moeda(total);
 }
 
-export function abrirModalVenda() {
+export async function abrirModalVenda() {
   itensVendaTemp = [];
   setVal('venda-add-qtd', 1);
   mudarTipoVenda();
   renderItensVenda();
   el('btn-venda-cartao')?.classList.toggle('hidden', !maquininhaDisponivel());
   abrirModal('modal-venda');
+
+  // O botão Pix depende da chave cadastrada; recarrega a config a cada abertura
+  // para refletir uma chave recém-salva sem precisar reabrir o app.
+  await carregarConfigPix();
+  el('btn-venda-pix')?.classList.toggle('hidden', !pixDisponivel());
 }
 
 const totalVenda = () => itensVendaTemp.reduce((acc, i) => acc + i.total, 0);
@@ -132,6 +138,23 @@ export async function venderNoCartao() {
     if (ok) {
       fecharModal('modal-venda');
       showToast(`Venda no cartão — ${moeda(vendaRes.total)}`);
+    }
+  }
+}
+
+export async function venderNoPix() {
+  if (!itensVendaTemp.length) return showToast('Adicione ao menos um item.');
+
+  const valor = totalVenda();
+  if (valor <= 0) return showToast('Valor inválido.');
+
+  const descricao = itensVendaTemp.map((i) => `${i.qtd}x ${i.nome}`).join(', ');
+  const resultado = await cobrarNoPix(valor, descricao);
+  if (resultado?.aprovado) {
+    const { ok, resultado: vendaRes } = await acao(req('POST', '/vendas', { itens: itensParaEnvio() }));
+    if (ok) {
+      fecharModal('modal-venda');
+      showToast(`Venda no Pix — ${moeda(vendaRes.total)}`);
     }
   }
 }
