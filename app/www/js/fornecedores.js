@@ -25,7 +25,7 @@ export function renderFornecedores() {
         </div>`
         )
         .join('')
-    : '<p class="p-4 text-center text-slate-500">Nenhum fornecedor cadastrado.</p>';
+    : '<p class="empty-state">Nenhum fornecedor cadastrado.</p>';
 }
 
 export function abrirModalFornecedor() {

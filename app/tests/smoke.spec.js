@@ -211,9 +211,9 @@ test('venda de balcão baixa o estoque e credita o caixa', async ({ page, baseUR
   await cadastrarProduto(page, { nome: 'Filtro de óleo', custo: 12, venda: 30, qtd: 8 });
 
   await irPara(page, 'Caixa');
-  await botaoDaAba(page, 'caixa', /VENDER/).click();
+  await botaoDaAba(page, 'caixa', /Nova venda/i).click();
   await page.fill('#venda-add-qtd', '3');
-  await page.locator('#modal-venda button', { hasText: 'ADD' }).click();
+  await page.locator('#modal-venda button', { hasText: 'Adicionar' }).click();
   await expect(page.locator('#lista-itens-venda')).toContainText('Filtro de óleo');
   await page.locator('#modal-venda').getByRole('button', { name: 'Vender' }).click();
   await expect(page.locator('#modal-venda')).not.toHaveClass(/active/);
@@ -230,9 +230,9 @@ test('venda acima do estoque é recusada pelo servidor', async ({ page, baseURL 
   await cadastrarProduto(page, { nome: 'Corrente', custo: 50, venda: 120, qtd: 2 });
 
   await irPara(page, 'Caixa');
-  await botaoDaAba(page, 'caixa', /VENDER/).click();
+  await botaoDaAba(page, 'caixa', /Nova venda/i).click();
   await page.fill('#venda-add-qtd', '5');
-  await page.locator('#modal-venda button', { hasText: 'ADD' }).click();
+  await page.locator('#modal-venda button', { hasText: 'Adicionar' }).click();
   await page.locator('#modal-venda').getByRole('button', { name: 'Vender' }).click();
 
   await expect(page.locator('#toast')).toContainText('Estoque insuficiente');
@@ -257,9 +257,9 @@ test('venda por Pix gera QR e copia-e-cola no valor, e ao confirmar baixa estoqu
 
   // Venda de 2x25 = 50 cobrada no Pix.
   await irPara(page, 'Caixa');
-  await botaoDaAba(page, 'caixa', /VENDER/).click();
+  await botaoDaAba(page, 'caixa', /Nova venda/i).click();
   await page.fill('#venda-add-qtd', '2');
-  await page.locator('#modal-venda button', { hasText: 'ADD' }).click();
+  await page.locator('#modal-venda button', { hasText: 'Adicionar' }).click();
   await expect(page.locator('#lista-itens-venda')).toContainText('Pastilha');
 
   const btnPix = page.locator('#btn-venda-pix');
@@ -287,6 +287,44 @@ test('venda por Pix gera QR e copia-e-cola no valor, e ao confirmar baixa estoqu
   expect(produtos.find((p) => p.nome === 'Pastilha').qtd).toBe(3);
 });
 
+test('ações da venda, incluindo PIX, cabem sem rolagem horizontal em qualquer largura', async ({ page, baseURL, request }) => {
+  await request.post(`${baseURL}/api/auth/organizacao/pix`, {
+    data: { chave: 'oficina@pix.com', nome: 'Moto Gear', cidade: 'Sao Paulo' },
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  await page.setViewportSize({ width: 320, height: 700 });
+  await abrirLogado(page, baseURL, token);
+  await irPara(page, 'Caixa');
+
+  for (const width of [320, 360, 390, 768]) {
+    await page.setViewportSize({ width, height: 844 });
+    if (await page.locator('#modal-venda').evaluate((node) => node.classList.contains('active'))) {
+      await page.locator('#modal-venda').getByRole('button', { name: 'Fechar venda' }).click();
+    }
+
+    await botaoDaAba(page, 'caixa', /Nova venda/i).click();
+    await expect(page.locator('#btn-venda-pix')).toBeVisible();
+
+    const layout = await page.locator('#modal-venda').evaluate((modal) => {
+      const pix = modal.querySelector('#btn-venda-pix').getBoundingClientRect();
+      const content = modal.querySelector('.modal-content');
+      return {
+        viewport: window.innerWidth,
+        documentOverflow: document.documentElement.scrollWidth - window.innerWidth,
+        modalOverflow: content.scrollWidth - content.clientWidth,
+        pixLeft: pix.left,
+        pixRight: pix.right
+      };
+    });
+
+    expect(layout.documentOverflow, `documento em ${width}px`).toBeLessThanOrEqual(0);
+    expect(layout.modalOverflow, `modal em ${width}px`).toBeLessThanOrEqual(0);
+    expect(layout.pixLeft, `PIX começa fora em ${width}px`).toBeGreaterThanOrEqual(0);
+    expect(layout.pixRight, `PIX termina fora em ${width}px`).toBeLessThanOrEqual(layout.viewport);
+  }
+});
+
 test('sem chave Pix cadastrada, o botão Pix não aparece na venda', async ({ page, baseURL, request }) => {
   // A chave Pix mora na organização e sobrevive ao reset de dados, então zera
   // aqui pra não herdar a chave de um teste anterior.
@@ -299,9 +337,9 @@ test('sem chave Pix cadastrada, o botão Pix não aparece na venda', async ({ pa
   await cadastrarProduto(page, { nome: 'Vela', custo: 5, venda: 15, qtd: 4 });
 
   await irPara(page, 'Caixa');
-  await botaoDaAba(page, 'caixa', /VENDER/).click();
+  await botaoDaAba(page, 'caixa', /Nova venda/i).click();
   await page.fill('#venda-add-qtd', '1');
-  await page.locator('#modal-venda button', { hasText: 'ADD' }).click();
+  await page.locator('#modal-venda button', { hasText: 'Adicionar' }).click();
 
   await expect(page.locator('#btn-venda-pix')).toBeHidden();
 });
@@ -309,7 +347,7 @@ test('sem chave Pix cadastrada, o botão Pix não aparece na venda', async ({ pa
 test('despesa manual entra como saída', async ({ page, baseURL }) => {
   await abrirLogado(page, baseURL, token);
   await irPara(page, 'Caixa');
-  await botaoDaAba(page, 'caixa', /DESPESA/).click();
+  await botaoDaAba(page, 'caixa', /Nova despesa/i).click();
   await page.fill('#despesa-desc', 'Aluguel');
   await page.fill('#despesa-valor', '1500');
   await page.locator('#modal-despesa').getByRole('button', { name: 'Lançar' }).click();
@@ -342,7 +380,7 @@ test('ciclo completo da OS: criar, andamento debita estoque, concluir gera pend�
 
   // Nova OS com a bateria
   await page.locator('#perfil-cliente').getByRole('button', { name: /Nova OS/ }).click();
-  await page.locator('#modal-os button', { hasText: 'ADD' }).click();
+  await page.locator('#modal-os button', { hasText: 'Adicionar' }).click();
   await expect(page.locator('#lista-itens-os')).toContainText('Bateria');
   await page.locator('#btn-salvar-os').click();
   await expect(page.locator('#modal-os')).not.toHaveClass(/active/);
@@ -416,7 +454,7 @@ test('orçamento aprovado vira OS pendente', async ({ page, baseURL }) => {
 
   await page.locator('#lista-clientes .card').first().click();
   await page.locator('#perfil-cliente').getByRole('button', { name: 'Orçamento' }).click();
-  await page.locator('#modal-os button', { hasText: 'ADD' }).click();
+  await page.locator('#modal-os button', { hasText: 'Adicionar' }).click();
   await page.locator('#btn-salvar-os').click();
   await expect(page.locator('#modal-os')).not.toHaveClass(/active/);
 
@@ -439,7 +477,7 @@ test('central de OS lista as ordens ativas de todos os clientes', async ({ page,
 
   await page.locator('#lista-clientes .card').first().click();
   await page.locator('#perfil-cliente').getByRole('button', { name: /Nova OS/ }).click();
-  await page.locator('#modal-os button', { hasText: 'ADD' }).click();
+  await page.locator('#modal-os button', { hasText: 'Adicionar' }).click();
   await page.locator('#btn-salvar-os').click();
   await page.locator('#perfil-cliente').getByRole('button', { name: 'Voltar' }).click();
 
@@ -455,9 +493,9 @@ test('análises somam receitas, despesas e ranking de vendas', async ({ page, ba
   await cadastrarProduto(page, { nome: 'Óleo 20W50', custo: 15, venda: 35, qtd: 10 });
 
   await irPara(page, 'Caixa');
-  await botaoDaAba(page, 'caixa', /VENDER/).click();
+  await botaoDaAba(page, 'caixa', /Nova venda/i).click();
   await page.fill('#venda-add-qtd', '2');
-  await page.locator('#modal-venda button', { hasText: 'ADD' }).click();
+  await page.locator('#modal-venda button', { hasText: 'Adicionar' }).click();
   await page.locator('#modal-venda').getByRole('button', { name: 'Vender' }).click();
   await expect(page.locator('#modal-venda')).not.toHaveClass(/active/);
 

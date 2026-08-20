@@ -84,16 +84,16 @@ function renderItensVenda() {
     ? itensVendaTemp
         .map(
           (item, i) => `
-        <div class="flex items-center justify-between rounded-lg border border-gear-700 bg-gear-800 p-2 text-sm">
-          <div>
+        <div class="flex items-center justify-between gap-3 rounded-xl border border-gear-700 bg-gear-800 p-3 text-sm">
+          <div class="min-w-0 flex-1">
             <p class="font-bold">${item.qtd}x ${esc(item.nome)}</p>
             <p class="text-xs text-slate-400">${moeda(item.total)}</p>
           </div>
-          <button onclick="App.remItemVenda(${i})" class="text-red-500"><i data-lucide="trash-2"></i></button>
+          <button onclick="App.remItemVenda(${i})" class="btn-icon !h-10 !w-10 !border-red-500/30 !text-red-400" aria-label="Remover ${esc(item.nome)}"><i data-lucide="trash-2" aria-hidden="true"></i></button>
         </div>`
         )
         .join('')
-    : '<p class="text-sm text-slate-500">Nenhum item adicionado.</p>';
+    : '<p class="empty-state">Nenhum item adicionado.</p>';
 
   el('venda-total').textContent = moeda(total);
 }

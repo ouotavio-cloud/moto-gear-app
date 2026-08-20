@@ -88,7 +88,7 @@ export async function cadastrarProduto(page, { nome, custo = 10, venda = 25, qtd
 
 export async function cadastrarCliente(page, { nome, placa = 'ABC1D23', moto = 'CG 160' }) {
   await irPara(page, 'Clientes');
-  await botaoDaAba(page, 'clientes', /NOVO CLIENTE/).click();
+  await botaoDaAba(page, 'clientes', /Novo cliente/i).click();
   await page.fill('#cli-nome', nome);
   await page.fill('#cli-placa', placa);
   await page.fill('#cli-moto', moto);

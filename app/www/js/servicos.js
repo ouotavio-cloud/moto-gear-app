@@ -31,7 +31,7 @@ export function renderServicos() {
         </div>`
         )
         .join('')
-    : '<p class="p-4 text-center text-slate-500">Nenhum serviço cadastrado.</p>';
+    : '<p class="empty-state">Nenhum serviço cadastrado.</p>';
 }
 
 /* --------------------------- peças vinculadas ----------------------------- */
@@ -43,9 +43,9 @@ function renderPecasVinculadas() {
     .map((peca, i) => {
       const produto = db.produtos.find((p) => p.id === peca.produtoId);
       return `
-        <div class="flex items-center justify-between rounded-lg border border-gear-700 bg-gear-900 p-2 text-sm">
+        <div class="flex items-center justify-between gap-3 rounded-xl border border-gear-700 bg-gear-900 p-3 text-sm">
           <span>${peca.qtd}x ${esc(produto?.nome ?? 'Peça removida')}</span>
-          <button onclick="App.remPecaServico(${i})" class="text-red-500"><i data-lucide="trash-2"></i></button>
+          <button onclick="App.remPecaServico(${i})" class="btn-icon !h-10 !w-10 !border-red-500/30 !text-red-400" aria-label="Remover peça"><i data-lucide="trash-2" aria-hidden="true"></i></button>
         </div>`;
     })
     .join('');
