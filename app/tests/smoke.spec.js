@@ -177,10 +177,10 @@ test('os botões +/- ajustam o estoque na hora', async ({ page, baseURL }) => {
   await abrirLogado(page, baseURL, token);
   await cadastrarProduto(page, { nome: 'Vela', custo: 10, venda: 25, qtd: 3 });
 
-  await page.locator('#lista-estoque button', { hasText: '+' }).first().click();
+  await page.getByRole('button', { name: 'Adicionar uma unidade de Vela' }).click();
   await expect(page.locator('#lista-estoque')).toContainText('4');
 
-  await page.locator('#lista-estoque button', { hasText: '-' }).first().click();
+  await page.getByRole('button', { name: 'Remover uma unidade de Vela' }).click();
   await expect(page.locator('#lista-estoque')).toContainText('3');
 
   const { produtos } = await estado(page);
@@ -215,7 +215,7 @@ test('venda de balcão baixa o estoque e credita o caixa', async ({ page, baseUR
   await page.fill('#venda-add-qtd', '3');
   await page.locator('#modal-venda button', { hasText: 'Adicionar' }).click();
   await expect(page.locator('#lista-itens-venda')).toContainText('Filtro de óleo');
-  await page.locator('#modal-venda').getByRole('button', { name: 'Vender' }).click();
+  await page.locator('#modal-venda').getByRole('button', { name: 'Dinheiro' }).click();
   await expect(page.locator('#modal-venda')).not.toHaveClass(/active/);
 
   // 8 unidades a 12 de custo saíram como despesa; a venda soma 90 de entrada.
@@ -233,7 +233,7 @@ test('venda acima do estoque é recusada pelo servidor', async ({ page, baseURL 
   await botaoDaAba(page, 'caixa', /Nova venda/i).click();
   await page.fill('#venda-add-qtd', '5');
   await page.locator('#modal-venda button', { hasText: 'Adicionar' }).click();
-  await page.locator('#modal-venda').getByRole('button', { name: 'Vender' }).click();
+  await page.locator('#modal-venda').getByRole('button', { name: 'Dinheiro' }).click();
 
   await expect(page.locator('#toast')).toContainText('Estoque insuficiente');
 
@@ -496,7 +496,7 @@ test('análises somam receitas, despesas e ranking de vendas', async ({ page, ba
   await botaoDaAba(page, 'caixa', /Nova venda/i).click();
   await page.fill('#venda-add-qtd', '2');
   await page.locator('#modal-venda button', { hasText: 'Adicionar' }).click();
-  await page.locator('#modal-venda').getByRole('button', { name: 'Vender' }).click();
+  await page.locator('#modal-venda').getByRole('button', { name: 'Dinheiro' }).click();
   await expect(page.locator('#modal-venda')).not.toHaveClass(/active/);
 
   await irPara(page, 'Análises');
