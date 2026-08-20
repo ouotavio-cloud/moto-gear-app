@@ -8,6 +8,7 @@ import {
   botaoDaAba,
   estado,
   coletarErros,
+  abrirConfig,
   USUARIO,
   SENHA
 } from './helpers.js';
@@ -87,11 +88,11 @@ test('cadastro com senhas diferentes mostra erro e não envia nada', async ({ pa
 
 test('cadastro por código de convite entra na oficina do chefe', async ({ page, baseURL, browser }) => {
   await abrirLogado(page, baseURL, token);
-  await page.locator('header .fa-cog').click();
+  await abrirConfig(page);
   const codigoLocator = page.locator('#cfg-codigo-convite');
   await expect(codigoLocator).toContainText(/\w/); // espera o fetch assíncrono preencher o código
   const codigo = (await codigoLocator.textContent()).trim();
-  await page.locator('#modal-config .fa-times').click();
+  await page.locator('#modal-config').getByRole('button', { name: 'Fechar configurações' }).click();
 
   // Contexto isolado: simula um segundo aparelho, sem herdar a sessão do chefe.
   const contexto2 = await browser.newContext();
@@ -132,6 +133,12 @@ test('código de convite inválido mostra erro e não entra', async ({ page, bas
 
 test('navega por todas as abas sem erro', async ({ page, baseURL }) => {
   const erros = await abrirLogado(page, baseURL, token);
+
+  await expect(page.locator('.bottom-nav .nav-item')).toHaveCount(4);
+  await irPara(page, 'Operações');
+  await expect(page.locator('#tab-operacoes')).toContainText('Produtos e estoque');
+  await expect(page.locator('#tab-operacoes')).toContainText('Serviços');
+  await expect(page.locator('#tab-operacoes')).toContainText('Fornecedores');
 
   for (const [rotulo, id] of [
     ['Estoque', 'tab-estoque'],
@@ -239,14 +246,14 @@ test('venda por Pix gera QR e copia-e-cola no valor, e ao confirmar baixa estoqu
   await cadastrarProduto(page, { nome: 'Pastilha', custo: 10, venda: 25, qtd: 5 });
 
   // Chefe cadastra a chave Pix.
-  await page.locator('header .fa-cog').click();
+  await abrirConfig(page);
   await expect(page.locator('#cfg-pix-wrap')).toBeVisible();
   await page.fill('#cfg-pix-chave', 'oficina@pix.com');
   await page.fill('#cfg-pix-nome', 'Moto Gear');
   await page.fill('#cfg-pix-cidade', 'Sao Paulo');
   await page.locator('#cfg-pix-wrap').getByRole('button', { name: /Salvar chave Pix/ }).click();
   await expect(page.locator('#toast')).toContainText('Pix salva');
-  await page.locator('#modal-config .fa-times').click();
+  await page.locator('#modal-config').getByRole('button', { name: 'Fechar configurações' }).click();
 
   // Venda de 2x25 = 50 cobrada no Pix.
   await irPara(page, 'Caixa');
@@ -434,7 +441,7 @@ test('central de OS lista as ordens ativas de todos os clientes', async ({ page,
   await page.locator('#perfil-cliente').getByRole('button', { name: /Nova OS/ }).click();
   await page.locator('#modal-os button', { hasText: 'ADD' }).click();
   await page.locator('#btn-salvar-os').click();
-  await page.locator('#perfil-cliente .fa-arrow-left').click();
+  await page.locator('#perfil-cliente').getByRole('button', { name: 'Voltar' }).click();
 
   await botaoDaAba(page, 'clientes', /Central de OS/).click();
   await expect(page.locator('#lista-central-os')).toContainText('Cliente Central');
@@ -487,7 +494,7 @@ test('conferência da nota fiscal lança estoque e despesa', async ({ page, base
     })
   );
 
-  await page.locator('header .fa-receipt').click();
+  await page.locator('header').getByRole('button', { name: 'Ler nota fiscal' }).click();
   await page.setInputFiles('#nota-upload', {
     name: 'nota.jpg',
     mimeType: 'image/jpeg',
@@ -520,7 +527,7 @@ test('conferência da nota fiscal lança estoque e despesa', async ({ page, base
 test('cadastro de fornecedor aparece na lista', async ({ page, baseURL }) => {
   await abrirLogado(page, baseURL, token);
   await irPara(page, 'Fornec.');
-  await page.locator('#tab-fornecedores .fa-plus').click();
+  await page.locator('#tab-fornecedores').getByRole('button', { name: 'Novo fornecedor' }).click();
   await page.fill('#forn-nome', 'Auto Peças Central');
   await page.fill('#forn-cnpj', '12.345.678/0001-90');
   await page.locator('#modal-fornecedor').getByRole('button', { name: 'Salvar' }).click();
@@ -530,7 +537,7 @@ test('cadastro de fornecedor aparece na lista', async ({ page, baseURL }) => {
 
 test('configurações mostra a lista de usuários da oficina', async ({ page, baseURL }) => {
   await abrirLogado(page, baseURL, token);
-  await page.locator('header .fa-cog').click();
+  await abrirConfig(page);
 
   await expect(page.locator('#cfg-usuarios-lista')).toContainText(USUARIO);
 });
@@ -539,7 +546,7 @@ test('sair da conta volta para a tela de login', async ({ page, baseURL }) => {
   await abrirLogado(page, baseURL, token);
   page.on('dialog', (dialogo) => dialogo.accept());
 
-  await page.locator('header .fa-cog').click();
+  await abrirConfig(page);
   await page.locator('#modal-config').getByRole('button', { name: /Sair da conta/ }).click();
 
   await expect(page.locator('#tela-login')).toHaveClass(/active/);

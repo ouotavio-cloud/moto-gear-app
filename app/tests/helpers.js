@@ -42,7 +42,31 @@ export function coletarErros(page) {
   return erros;
 }
 
-export const irPara = (page, aba) => page.locator('.nav-item', { hasText: aba }).click();
+export async function irPara(page, aba) {
+  const tabs = {
+    'Início': 'inicio',
+    'Operações': 'operacoes',
+    'Estoque': 'estoque',
+    'Serviços': 'servicos',
+    'Caixa': 'caixa',
+    'Clientes': 'clientes',
+    'Fornec.': 'fornecedores',
+    'Análises': 'analises'
+  };
+  const tab = tabs[aba];
+  const principal = page.locator(`.bottom-nav [data-tab-link="${tab}"]`);
+  if (await principal.count()) {
+    await principal.click();
+    return;
+  }
+  await page.locator('.profile-trigger').click();
+  await page.locator(`#menu-lateral [data-tab-link="${tab}"]`).click();
+}
+
+export async function abrirConfig(page) {
+  await page.locator('.profile-trigger').click();
+  await page.locator('#menu-lateral').getByRole('button', { name: /Configurações/ }).click();
+}
 
 /**
  * Botão dentro de uma aba específica. Vários rótulos ("VENDER", "NOVO CLIENTE")
@@ -52,7 +76,7 @@ export const botaoDaAba = (page, aba, nome) => page.locator(`#tab-${aba}`).getBy
 
 export async function cadastrarProduto(page, { nome, custo = 10, venda = 25, qtd = 5, min = 2 }) {
   await irPara(page, 'Estoque');
-  await page.locator('#tab-estoque .fa-plus').click();
+  await page.locator('#tab-estoque').getByRole('button', { name: 'Novo produto' }).click();
   await page.fill('#prod-nome', nome);
   await page.fill('#prod-custo', String(custo));
   await page.fill('#prod-venda', String(venda));
