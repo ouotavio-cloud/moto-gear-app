@@ -32,17 +32,17 @@ export function renderClientes() {
           const devido = totalDevido(c.id);
 
           const badgeOS = abertas
-            ? `<span class="badge ml-2 inline-flex items-center gap-1"><i class="fas fa-thumbtack"></i> ${abertas} OS aberta(s)</span>`
+            ? `<span class="badge ml-2 inline-flex items-center gap-1"><i data-lucide="pin"></i> ${abertas} OS aberta(s)</span>`
             : '';
           const badgePendencia = pendencias.length
-            ? `<span class="badge badge-red mt-2 inline-flex items-center gap-1"><i class="fas fa-exclamation-circle"></i> ${pendencias.length} pendência(s) — deve ${moeda(devido)}</span>`
+            ? `<span class="badge badge-red mt-2 inline-flex items-center gap-1"><i data-lucide="circle-alert"></i> ${pendencias.length} pendência(s) — deve ${moeda(devido)}</span>`
             : '';
 
           return `
         <div class="card ${pendencias.length ? 'border-2 border-red-500 bg-red-900/20' : ''}" onclick="App.abrirPerfilCliente('${esc(c.id)}')">
           <div class="mb-1 flex flex-wrap items-center"><p class="text-lg font-bold">${esc(c.nome)}</p>${badgeOS}</div>
           <p class="text-sm text-slate-400">
-            <i class="fas fa-motorcycle"></i> ${esc(c.moto || 'Moto não informada')}
+            <i data-lucide="bike"></i> ${esc(c.moto || 'Moto não informada')}
             ${c.placa ? `<span class="font-bold text-gear-orange">${esc(c.placa)}</span>` : ''}
           </p>
           ${badgePendencia}
@@ -185,7 +185,7 @@ function desenharPerfil() {
           </div>
           <div class="mt-2 flex gap-2">
             <button onclick="App.quitarPendencia('${esc(o.id)}')" class="btn-primary !bg-green-600 !bg-none !p-2 !text-sm">Registrar pagamento</button>
-            ${maquininhaDisponivel() ? `<button onclick="App.cobrarPendenciaCartao('${esc(o.id)}')" class="btn-primary !bg-amber-600 !bg-none !p-2 !text-sm"><i class="fas fa-credit-card"></i> Cartao</button>` : ''}
+            ${maquininhaDisponivel() ? `<button onclick="App.cobrarPendenciaCartao('${esc(o.id)}')" class="btn-primary !bg-amber-600 !bg-none !p-2 !text-sm"><i data-lucide="credit-card"></i> Cartao</button>` : ''}
           </div>
         </div>`
         )
