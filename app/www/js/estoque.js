@@ -26,7 +26,7 @@ export function renderEstoque() {
           <div class="flex-1" onclick="App.editarProduto('${esc(p.id)}')">
             <p class="font-bold">${esc(p.nome)} ${p.marca ? `<span class="text-xs text-slate-400">(${esc(p.marca)})</span>` : ''}</p>
             <p class="text-sm text-gear-orange">Venda: ${moeda(p.venda)} | Custo: ${moeda(p.custo)}</p>
-            ${p.codigoBarras ? `<p class="text-[10px] text-slate-500"><i class="fas fa-barcode mr-1"></i>${esc(p.codigoBarras)}</p>` : ''}
+            ${p.codigoBarras ? `<p class="text-[10px] text-slate-500"><i data-lucide="scan-barcode" class="mr-1"></i>${esc(p.codigoBarras)}</p>` : ''}
           </div>
           <div class="flex items-center gap-2">
             <button onclick="App.removeEstoqueRapido('${esc(p.id)}')" class="h-8 w-8 rounded-full bg-red-500 font-bold text-white active:scale-95">-</button>

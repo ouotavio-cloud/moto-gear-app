@@ -21,8 +21,8 @@ export function htmlTransacoes(lista) {
             <p class="font-bold">${esc(t.desc)}</p>
             <p class="font-bold ${cor}">${sinal} ${moeda(t.valor)}</p>
           </div>
-          <p class="mt-1 text-xs text-slate-400"><i class="fas fa-user mr-1"></i>${esc(t.clienteNome)}</p>
-          ${t.origemDetalhada ? `<p class="mt-1 text-xs leading-tight text-slate-500"><i class="fas fa-info-circle mr-1"></i>${esc(t.origemDetalhada)}</p>` : ''}
+          <p class="mt-1 text-xs text-slate-400"><i data-lucide="user" class="mr-1"></i>${esc(t.clienteNome)}</p>
+          ${t.origemDetalhada ? `<p class="mt-1 text-xs leading-tight text-slate-500"><i data-lucide="info" class="mr-1"></i>${esc(t.origemDetalhada)}</p>` : ''}
           <p class="mt-1 text-[10px] text-slate-600">${new Date(t.data).toLocaleString('pt-BR')}</p>
         </div>`;
     })
@@ -89,7 +89,7 @@ function renderItensVenda() {
             <p class="font-bold">${item.qtd}x ${esc(item.nome)}</p>
             <p class="text-xs text-slate-400">${moeda(item.total)}</p>
           </div>
-          <button onclick="App.remItemVenda(${i})" class="text-red-500"><i class="fas fa-trash"></i></button>
+          <button onclick="App.remItemVenda(${i})" class="text-red-500"><i data-lucide="trash-2"></i></button>
         </div>`
         )
         .join('')

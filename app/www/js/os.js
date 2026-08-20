@@ -78,7 +78,7 @@ function renderItensOS() {
             <p class="font-bold">${item.qtd}x ${esc(item.nome)}</p>
             <p class="text-xs text-slate-400">${moeda(item.total)}</p>
           </div>
-          <button onclick="App.remItemOS(${i})" class="text-red-500"><i class="fas fa-trash"></i></button>
+          <button onclick="App.remItemOS(${i})" class="text-red-500"><i data-lucide="trash-2"></i></button>
         </div>`
         )
         .join('')

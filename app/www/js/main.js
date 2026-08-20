@@ -4,7 +4,7 @@
  */
 
 import { carregarEstado, entrar, cadastrarOficina, cadastrarFuncionario, temSessao, servidor, quandoDeslogar } from './api.js';
-import { setRenderers, renderAll, switchTab, fecharModal, showToast, el, setVal, txt, carregando, pararCarregando } from './ui.js';
+import { setRenderers, renderAll, switchTab, fecharModal, showToast, el, setVal, txt, carregando, pararCarregando, abrirMenu, fecharMenu, navegarMenu, atualizarIcones } from './ui.js';
 import * as estoque from './estoque.js';
 import * as servicos from './servicos.js';
 import * as caixa from './caixa.js';
@@ -37,8 +37,8 @@ function atualizarModoLogin() {
   el('login-tipo-oficina').classList.toggle('active', tipoCadastro === 'oficina');
   el('login-tipo-funcionario').classList.toggle('active', tipoCadastro === 'funcionario');
   el('login-botao').innerHTML = modoCadastro
-    ? '<i class="fas fa-user-plus"></i> Criar conta'
-    : '<i class="fas fa-right-to-bracket"></i> Entrar';
+    ? '<i data-lucide="user-plus"></i> Criar conta'
+    : '<i data-lucide="log-in"></i> Entrar';
   el('login-troca-texto').textContent = modoCadastro ? 'Já tem conta?' : 'Ainda não tem conta?';
   el('login-troca-botao').textContent = modoCadastro ? 'Entrar' : 'Cadastre-se';
   el('login-erro').textContent = '';
@@ -150,6 +150,9 @@ async function fazerCadastro() {
 const App = {
   switchTab,
   fecharModal,
+  abrirMenu,
+  fecharMenu,
+  navegarMenu,
   fazerLogin,
   fazerCadastro,
   enviarFormLogin,
@@ -293,6 +296,7 @@ async function iniciar() {
   }
 
   document.body.dataset.pronto = 'sim';
+  atualizarIcones();
 
   // Só o APK se atualiza por download; no navegador basta recarregar a página.
   if (isNativo()) atualizacao.verificarAtualizacao();

@@ -45,7 +45,7 @@ function renderPecasVinculadas() {
       return `
         <div class="flex items-center justify-between rounded-lg border border-gear-700 bg-gear-900 p-2 text-sm">
           <span>${peca.qtd}x ${esc(produto?.nome ?? 'Peça removida')}</span>
-          <button onclick="App.remPecaServico(${i})" class="text-red-500"><i class="fas fa-trash"></i></button>
+          <button onclick="App.remPecaServico(${i})" class="text-red-500"><i data-lucide="trash-2"></i></button>
         </div>`;
     })
     .join('');

@@ -6,8 +6,8 @@
   <meta name="color-scheme" content="dark">
   <title>Moto Gear Oficina</title>
   <link rel="icon" href="logo.jpg">
-  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
   <link rel="stylesheet" href="css/app.css">
+  <script src="vendor/lucide.min.js" defer></script>
   <script src="servidor.js"></script>
   <script src="versao.js"></script>
   <script src="vendor/xlsx.full.min.js" defer></script>
@@ -17,10 +17,10 @@
 
   <!-- Faixa de atualização: aparece quando há uma versão mais nova publicada -->
   <div id="banner-atualizacao" class="hidden fixed inset-x-0 bottom-0 z-[300] border-t border-gear-700 bg-gear-800 p-3 shadow-2xl">
-    <p class="text-center text-sm font-bold text-white"><i class="fas fa-circle-arrow-up text-gear-orange"></i> Nova versão do app disponível <span id="banner-atualizacao-versao" class="text-gear-orange"></span></p>
+    <p class="text-center text-sm font-bold text-white"><i data-lucide="circle-arrow-up" class="text-gear-orange"></i> Nova versão do app disponível <span id="banner-atualizacao-versao" class="text-gear-orange"></span></p>
     <div class="mx-auto mt-2 flex max-w-sm gap-3">
       <button class="btn-secondary" onclick="App.adiarAtualizacao()">Depois</button>
-      <button class="btn-primary !bg-green-600 !bg-none" onclick="App.baixarAtualizacao()"><i class="fas fa-download"></i> Atualizar</button>
+      <button class="btn-primary !bg-green-600 !bg-none" onclick="App.baixarAtualizacao()"><i data-lucide="download"></i> Atualizar</button>
     </div>
   </div>
 
@@ -55,7 +55,7 @@
         <input type="text" id="login-codigo-convite" placeholder="Peça pro chefe da oficina" autocapitalize="characters">
       </div>
       <p id="login-erro" class="mb-3 text-sm text-red-400"></p>
-      <button id="login-botao" class="btn-primary" onclick="App.enviarFormLogin()"><i class="fas fa-right-to-bracket"></i> Entrar</button>
+      <button id="login-botao" class="btn-primary" onclick="App.enviarFormLogin()"><i data-lucide="log-in"></i> Entrar</button>
       <p class="mt-3 text-center text-sm text-slate-400">
         <span id="login-troca-texto">Ainda não tem conta?</span>
         <button type="button" id="login-troca-botao" class="font-semibold text-gear-orange" onclick="App.alternarModoLogin()">Cadastre-se</button>
@@ -64,24 +64,57 @@
   </div>
 
   <header class="logo-header">
-    <div class="flex items-center gap-3">
-      <img src="logo.jpg" class="logo-img" alt="Logo Moto Gear">
-      <h1 class="text-xl font-bold tracking-wide">MOTO GEAR</h1>
+    <button type="button" class="profile-trigger" onclick="App.abrirMenu()" aria-label="Abrir menu da oficina" aria-controls="menu-lateral" aria-expanded="false">
+      <img src="logo.jpg" class="logo-img" alt="">
+      <span class="profile-status" aria-hidden="true"></span>
+    </button>
+    <div class="min-w-0 flex-1">
+      <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-gear-orange">Moto Gear</p>
+      <h1 id="titulo-pagina" class="truncate text-lg font-semibold tracking-tight">Visão geral</h1>
     </div>
-    <div class="flex gap-4">
-      <button onclick="App.abrirLeitorNota()" class="text-xl text-slate-400" title="Ler nota fiscal"><i class="fas fa-receipt"></i></button>
-      <button onclick="document.getElementById('file-upload').click()" class="text-xl text-slate-400" title="Importar planilha"><i class="fas fa-file-import"></i></button>
-      <button onclick="App.abrirConfig()" class="text-xl text-slate-400" title="Configurações"><i class="fas fa-cog"></i></button>
-    </div>
+    <button type="button" onclick="App.abrirLeitorNota()" class="header-action" aria-label="Ler nota fiscal">
+      <i data-lucide="scan-line" aria-hidden="true"></i>
+    </button>
     <input type="file" id="file-upload" class="hidden" accept=".xlsx,.xls,.csv" onchange="App.importarPlanilha(event)">
     <input type="file" id="nota-upload" class="hidden" accept="image/*" capture="environment" onchange="App.processarFotoNota(event)">
   </header>
+
+  <!-- Menu lateral: recursos secundários e utilidades -->
+  <div id="menu-overlay" class="menu-overlay" onclick="App.fecharMenu()" aria-hidden="true"></div>
+  <aside id="menu-lateral" class="side-menu" aria-label="Menu da oficina" aria-hidden="true">
+    <div class="side-menu-header">
+      <div class="flex items-center gap-3">
+        <img src="logo.jpg" class="h-12 w-12 rounded-full object-cover ring-2 ring-gear-orange/70" alt="Logo Moto Gear">
+        <div>
+          <p class="font-semibold text-white">Moto Gear</p>
+          <p class="text-sm text-slate-400">Gestão da oficina</p>
+        </div>
+      </div>
+      <button type="button" class="icon-button" onclick="App.fecharMenu()" aria-label="Fechar menu"><i data-lucide="x" aria-hidden="true"></i></button>
+    </div>
+
+    <nav class="side-menu-nav" aria-label="Recursos">
+      <p class="menu-section-label">Oficina</p>
+      <button class="menu-item" data-tab-link="estoque" onclick="App.navegarMenu('estoque')"><span class="menu-icon"><i data-lucide="package" aria-hidden="true"></i></span><span><strong>Produtos e estoque</strong><small>Peças, códigos e quantidades</small></span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+      <button class="menu-item" data-tab-link="servicos" onclick="App.navegarMenu('servicos')"><span class="menu-icon"><i data-lucide="wrench" aria-hidden="true"></i></span><span><strong>Serviços</strong><small>Catálogo e mão de obra</small></span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+      <button class="menu-item" data-tab-link="fornecedores" onclick="App.navegarMenu('fornecedores')"><span class="menu-icon"><i data-lucide="truck" aria-hidden="true"></i></span><span><strong>Fornecedores</strong><small>Contatos e compras</small></span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+
+      <p class="menu-section-label mt-6">Gestão</p>
+      <button class="menu-item" data-tab-link="analises" onclick="App.navegarMenu('analises')"><span class="menu-icon"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i></span><span><strong>Análises</strong><small>Indicadores e fechamento</small></span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+      <button class="menu-item" onclick="App.abrirConfig(); App.fecharMenu()"><span class="menu-icon"><i data-lucide="settings" aria-hidden="true"></i></span><span><strong>Configurações</strong><small>Conta, Pix e preferências</small></span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+    </nav>
+
+    <div class="side-menu-tools">
+      <button type="button" onclick="App.abrirLeitorNota(); App.fecharMenu()"><i data-lucide="scan-line" aria-hidden="true"></i><span>Ler nota</span></button>
+      <button type="button" onclick="document.getElementById('file-upload').click(); App.fecharMenu()"><i data-lucide="file-up" aria-hidden="true"></i><span>Importar</span></button>
+    </div>
+  </aside>
 
   <div id="toast" class="toast">Mensagem</div>
 
   <div id="overlay-carregando" class="modal !items-center">
     <div class="rounded-2xl bg-gear-800 p-8 text-center">
-      <i class="fas fa-spinner fa-spin text-3xl text-gear-orange"></i>
+      <i data-lucide="loader-circle" class="animate-spin text-3xl text-gear-orange"></i>
       <p id="carregando-texto" class="mt-4 font-bold">Processando...</p>
     </div>
   </div>
@@ -95,21 +128,21 @@
 
     <div class="mb-4 grid grid-cols-2 gap-3">
       <div class="card !mb-0 p-3 text-center">
-        <i class="fas fa-boxes mb-2 text-2xl text-gear-orange"></i>
+        <i data-lucide="package" class="mb-2 text-2xl text-gear-orange"></i>
         <p class="text-xs font-bold text-slate-400">ITENS ESTOQUE</p>
         <p id="dash-itens" class="text-xl font-bold">0</p>
       </div>
       <div class="card !mb-0 p-3 text-center">
-        <i class="fas fa-wrench mb-2 text-2xl text-gear-orange"></i>
+        <i data-lucide="wrench" class="mb-2 text-2xl text-gear-orange"></i>
         <p class="text-xs font-bold text-slate-400">OS ABERTAS</p>
         <p id="dash-os" class="text-xl font-bold">0</p>
       </div>
     </div>
 
-    <h3 class="mb-3 mt-6 text-sm font-bold text-slate-400"><i class="fas fa-exclamation-triangle mr-2 text-red-500"></i>ALERTAS DE ESTOQUE</h3>
+    <h3 class="mb-3 mt-6 text-sm font-bold text-slate-400"><i data-lucide="triangle-alert" class="mr-2 text-red-500"></i>ALERTAS DE ESTOQUE</h3>
     <div id="dash-alertas" class="mb-6 space-y-2"></div>
 
-    <h3 class="mb-3 text-sm font-bold text-slate-400"><i class="fas fa-list-ul mr-2 text-gear-orange"></i>ÚLTIMAS TRANSAÇÕES</h3>
+    <h3 class="mb-3 text-sm font-bold text-slate-400"><i data-lucide="list" class="mr-2 text-gear-orange"></i>ÚLTIMAS TRANSAÇÕES</h3>
     <div id="dash-transacoes" class="card mb-4 overflow-hidden p-0"></div>
   </main>
 
@@ -117,15 +150,41 @@
   <main id="tab-estoque" class="tab-content">
     <div class="mb-4 flex gap-2">
       <input type="text" id="busca-estoque" placeholder="Buscar peça ou código..." class="!m-0" oninput="App.renderEstoque()">
-      <button onclick="App.escanearNoEstoque()" class="rounded-xl bg-gear-700 px-4 font-bold text-white" title="Ler código de barras"><i class="fas fa-barcode"></i></button>
-      <button onclick="App.abrirModalProduto()" class="rounded-xl bg-gear-orange px-4 font-bold text-white"><i class="fas fa-plus"></i></button>
+      <button onclick="App.escanearNoEstoque()" class="rounded-xl bg-gear-700 px-4 font-bold text-white" title="Ler código de barras"><i data-lucide="scan-barcode"></i></button>
+      <button onclick="App.abrirModalProduto()" class="rounded-xl bg-gear-orange px-4 font-bold text-white" aria-label="Novo produto"><i data-lucide="plus" aria-hidden="true"></i></button>
     </div>
     <div id="lista-estoque" class="space-y-3"></div>
   </main>
 
+  <!-- HUB DE OPERAÇÕES: agrupa os fluxos correlatos -->
+  <main id="tab-operacoes" class="tab-content">
+    <div class="mb-5">
+      <p class="eyebrow">Operação da oficina</p>
+      <h2 class="mt-1 text-2xl font-semibold tracking-tight">O que você precisa gerenciar?</h2>
+      <p class="mt-2 text-sm leading-relaxed text-slate-400">Produtos, serviços e fornecedores reunidos em um único espaço.</p>
+    </div>
+    <div class="operation-grid">
+      <button class="operation-card" onclick="App.switchTab('estoque')">
+        <span class="operation-icon"><i data-lucide="package" aria-hidden="true"></i></span>
+        <span class="min-w-0 flex-1 text-left"><strong>Produtos e estoque</strong><small>Consultar peças, cadastrar itens e ajustar quantidades</small></span>
+        <i data-lucide="chevron-right" aria-hidden="true"></i>
+      </button>
+      <button class="operation-card" onclick="App.switchTab('servicos')">
+        <span class="operation-icon"><i data-lucide="wrench" aria-hidden="true"></i></span>
+        <span class="min-w-0 flex-1 text-left"><strong>Serviços</strong><small>Organizar catálogo, valores e peças vinculadas</small></span>
+        <i data-lucide="chevron-right" aria-hidden="true"></i>
+      </button>
+      <button class="operation-card" onclick="App.switchTab('fornecedores')">
+        <span class="operation-icon"><i data-lucide="truck" aria-hidden="true"></i></span>
+        <span class="min-w-0 flex-1 text-left"><strong>Fornecedores</strong><small>Centralizar contatos e informações de compra</small></span>
+        <i data-lucide="chevron-right" aria-hidden="true"></i>
+      </button>
+    </div>
+  </main>
+
   <!-- 3. SERVIÇOS -->
   <main id="tab-servicos" class="tab-content">
-    <button onclick="App.abrirModalServico()" class="btn-primary mb-4"><i class="fas fa-plus"></i> NOVO SERVIÇO</button>
+    <button onclick="App.abrirModalServico()" class="btn-primary mb-4"><i data-lucide="plus"></i> NOVO SERVIÇO</button>
     <div id="lista-servicos" class="space-y-3"></div>
   </main>
 
@@ -136,22 +195,22 @@
       <h2 id="caixa-saldo" class="text-3xl font-bold text-green-500">R$ 0,00</h2>
     </div>
     <div class="mb-6 flex gap-3">
-      <button onclick="App.abrirModalVenda()" class="btn-primary !bg-green-600 !bg-none"><i class="fas fa-arrow-down"></i> VENDER</button>
-      <button onclick="App.abrirModalDespesa()" class="btn-primary !bg-red-600 !bg-none"><i class="fas fa-arrow-up"></i> DESPESA</button>
+      <button onclick="App.abrirModalVenda()" class="btn-primary !bg-green-600 !bg-none"><i data-lucide="arrow-down"></i> VENDER</button>
+      <button onclick="App.abrirModalDespesa()" class="btn-primary !bg-red-600 !bg-none"><i data-lucide="arrow-up"></i> DESPESA</button>
     </div>
-    <h3 class="mb-3 text-sm font-bold text-slate-400"><i class="fas fa-list-ul mr-2 text-gear-orange"></i>AUDITORIA DE CAIXA</h3>
+    <h3 class="mb-3 text-sm font-bold text-slate-400"><i data-lucide="list" class="mr-2 text-gear-orange"></i>AUDITORIA DE CAIXA</h3>
     <div id="lista-transacoes" class="card mb-4 overflow-hidden p-0"></div>
     <div class="flex gap-2">
-      <button onclick="App.exportarCaixaCSV()" class="btn-secondary flex-1 !bg-blue-600"><i class="fas fa-file-csv"></i> Exportar CSV</button>
-      <button onclick="App.limparCaixa()" class="btn-secondary flex-1 !text-red-500"><i class="fas fa-trash"></i> Resetar</button>
+      <button onclick="App.exportarCaixaCSV()" class="btn-secondary flex-1 !bg-blue-600"><i data-lucide="file-spreadsheet"></i> Exportar CSV</button>
+      <button onclick="App.limparCaixa()" class="btn-secondary flex-1 !text-red-500"><i data-lucide="trash-2"></i> Resetar</button>
     </div>
   </main>
 
   <!-- 5. CLIENTES -->
   <main id="tab-clientes" class="tab-content">
     <div class="mb-4 flex gap-2">
-      <button onclick="App.abrirModalCliente()" class="btn-primary flex-1"><i class="fas fa-user-plus"></i> NOVO CLIENTE</button>
-      <button onclick="App.abrirCentralOS()" class="btn-primary flex-1 !bg-blue-600 !bg-none !p-3 !text-sm"><i class="fas fa-clipboard-list"></i> Central de OS</button>
+      <button onclick="App.abrirModalCliente()" class="btn-primary flex-1"><i data-lucide="user-plus"></i> NOVO CLIENTE</button>
+      <button onclick="App.abrirCentralOS()" class="btn-primary flex-1 !bg-blue-600 !bg-none !p-3 !text-sm"><i data-lucide="clipboard-list"></i> Central de OS</button>
     </div>
     <input type="text" id="busca-cliente" placeholder="Buscar por nome ou placa..." oninput="App.renderClientes()">
     <div id="lista-clientes" class="mt-4 space-y-3"></div>
@@ -161,7 +220,7 @@
   <main id="tab-fornecedores" class="tab-content">
     <div class="mb-4 flex gap-2">
       <input type="text" id="busca-fornecedor" placeholder="Buscar fornecedor..." class="!m-0" oninput="App.renderFornecedores()">
-      <button onclick="App.abrirModalFornecedor()" class="rounded-xl bg-gear-orange px-4 font-bold text-white"><i class="fas fa-plus"></i></button>
+      <button onclick="App.abrirModalFornecedor()" class="rounded-xl bg-gear-orange px-4 font-bold text-white" aria-label="Novo fornecedor"><i data-lucide="plus" aria-hidden="true"></i></button>
     </div>
     <div id="lista-fornecedores" class="space-y-3"></div>
   </main>
@@ -183,8 +242,8 @@
   <div id="modal-config" class="modal">
     <div class="modal-content">
       <div class="mb-4 flex items-center justify-between">
-        <h2 class="text-xl font-bold"><i class="fas fa-cog"></i> Configurações</h2>
-        <button onclick="App.fecharModal('modal-config')" class="text-xl text-gear-orange"><i class="fas fa-times"></i></button>
+        <h2 class="text-xl font-bold"><i data-lucide="settings"></i> Configurações</h2>
+        <button onclick="App.fecharModal('modal-config')" class="text-xl text-gear-orange" aria-label="Fechar configurações"><i data-lucide="x" aria-hidden="true"></i></button>
       </div>
 
       <div class="card border-l-4 border-l-purple-500">
@@ -193,7 +252,7 @@
         <input type="url" id="cfg-servidor" placeholder="https://sua-oficina.onrender.com">
         <label>Margem sugerida na entrada por nota (%)</label>
         <input type="number" id="cfg-margem" min="0" step="1" placeholder="60">
-        <button onclick="App.salvarPreferencias()" class="btn-primary mt-3"><i class="fas fa-save"></i> Salvar</button>
+        <button onclick="App.salvarPreferencias()" class="btn-primary mt-3"><i data-lucide="save"></i> Salvar</button>
       </div>
 
       <div class="card border-l-4 border-l-amber-500">
@@ -202,7 +261,7 @@
         <input type="password" id="cfg-senha-atual" autocomplete="current-password">
         <label>Nova senha</label>
         <input type="password" id="cfg-senha-nova" autocomplete="new-password">
-        <button onclick="App.trocarSenha()" class="btn-secondary"><i class="fas fa-key"></i> Alterar senha</button>
+        <button onclick="App.trocarSenha()" class="btn-secondary"><i data-lucide="key-round"></i> Alterar senha</button>
       </div>
 
       <div class="card border-l-4 border-l-gear-orange">
@@ -211,12 +270,12 @@
         <div id="cfg-codigo-convite-wrap" class="hidden mt-3">
           <label>Código de convite (pra novos funcionários entrarem)</label>
           <p class="rounded-xl border border-gear-700 bg-gear-900 p-3 text-center text-xl font-bold tracking-widest text-gear-orange" id="cfg-codigo-convite"></p>
-          <button onclick="App.gerarNovoCodigoConvite()" class="btn-secondary mt-2"><i class="fas fa-rotate"></i> Gerar novo código</button>
+          <button onclick="App.gerarNovoCodigoConvite()" class="btn-secondary mt-2"><i data-lucide="refresh-cw"></i> Gerar novo código</button>
         </div>
       </div>
 
       <div id="cfg-pix-wrap" class="card border-l-4 border-l-teal-500 hidden">
-        <h3 class="mb-2 font-bold text-slate-300"><i class="fas fa-qrcode text-teal-400"></i> Chave Pix da oficina</h3>
+        <h3 class="mb-2 font-bold text-slate-300"><i data-lucide="qr-code" class="text-teal-400"></i> Chave Pix da oficina</h3>
         <p class="mb-3 text-sm text-slate-400">Usada pra cobrar por Pix no balcão: o app gera o QR e o copia-e-cola no valor da venda, com o dinheiro caindo direto nessa chave.</p>
         <label>Chave Pix (CPF/CNPJ, celular, e-mail ou aleatória)</label>
         <input type="text" id="cfg-pix-chave" placeholder="ex.: 11999998888 ou email@dominio.com">
@@ -224,7 +283,7 @@
         <input type="text" id="cfg-pix-nome" placeholder="ex.: Moto Gear" maxlength="25">
         <label>Cidade</label>
         <input type="text" id="cfg-pix-cidade" placeholder="ex.: Sao Paulo" maxlength="15">
-        <button onclick="App.salvarPix()" class="btn-primary mt-2 !bg-teal-600 !bg-none"><i class="fas fa-check"></i> Salvar chave Pix</button>
+        <button onclick="App.salvarPix()" class="btn-primary mt-2 !bg-teal-600 !bg-none"><i data-lucide="check"></i> Salvar chave Pix</button>
       </div>
 
       <div class="card border-l-4 border-l-green-500">
@@ -236,17 +295,17 @@
       <div class="card border-l-4 border-l-blue-500">
         <h3 class="mb-2 font-bold text-slate-300">Backup de segurança</h3>
         <p class="mb-4 text-sm text-slate-400">Gera um arquivo com todos os dados do sistema. Guarde-o com segurança.</p>
-        <button onclick="App.fazerBackup()" class="btn-primary mb-2 !bg-blue-600 !bg-none"><i class="fas fa-download"></i> Fazer backup completo</button>
+        <button onclick="App.fazerBackup()" class="btn-primary mb-2 !bg-blue-600 !bg-none"><i data-lucide="download"></i> Fazer backup completo</button>
 
         <hr class="my-4 border-gear-700">
 
         <h3 class="mb-2 font-bold text-slate-300">Restaurar sistema</h3>
         <p class="mb-4 text-sm text-slate-400">Importa um backup. Atenção: substitui os dados atuais deste aparelho.</p>
-        <button onclick="document.getElementById('file-restore').click()" class="btn-secondary"><i class="fas fa-upload"></i> Restaurar de um arquivo</button>
+        <button onclick="document.getElementById('file-restore').click()" class="btn-secondary"><i data-lucide="upload"></i> Restaurar de um arquivo</button>
         <input type="file" id="file-restore" class="hidden" accept=".json,.motogear,.txt" onchange="App.restaurarBackup(event)">
       </div>
 
-      <button onclick="App.sairDaConta()" class="btn-danger mt-2"><i class="fas fa-right-from-bracket"></i> Sair da conta</button>
+      <button onclick="App.sairDaConta()" class="btn-danger mt-2"><i data-lucide="log-out"></i> Sair da conta</button>
     </div>
   </div>
 
@@ -259,7 +318,7 @@
       <label>Código de barras</label>
       <div class="flex gap-2">
         <input type="text" id="prod-codigo" class="!m-0" placeholder="Opcional">
-        <button onclick="App.escanearParaProduto()" class="rounded-xl bg-gear-orange px-4 font-bold text-white"><i class="fas fa-barcode"></i></button>
+        <button onclick="App.escanearParaProduto()" class="rounded-xl bg-gear-orange px-4 font-bold text-white"><i data-lucide="scan-barcode"></i></button>
       </div>
       <div class="mt-3 grid grid-cols-2 gap-3">
         <div><label>Categoria</label><input type="text" id="prod-categoria"></div>
@@ -289,11 +348,11 @@
       <label>Nome do serviço</label><input type="text" id="serv-nome">
       <label>Valor da mão de obra (R$)</label><input type="number" id="serv-valor" step="0.01">
       <div class="mt-4 border-t border-gear-700 pt-4">
-        <label class="!text-gear-orange"><i class="fas fa-boxes"></i> Peças vinculadas</label>
+        <label class="!text-gear-orange"><i data-lucide="package"></i> Peças vinculadas</label>
         <div class="mt-2 flex gap-2">
           <select id="serv-add-peca" class="!m-0"></select>
           <input type="number" id="serv-add-qtd" class="!m-0 w-20" value="1" min="1">
-          <button class="rounded-xl bg-gear-orange px-4 text-white" onclick="App.addPecaServico()"><i class="fas fa-plus"></i></button>
+          <button class="rounded-xl bg-gear-orange px-4 text-white" onclick="App.addPecaServico()"><i data-lucide="plus"></i></button>
         </div>
         <div id="lista-pecas-servico" class="mt-3 space-y-2"></div>
       </div>
@@ -311,7 +370,7 @@
       <h2 class="mb-4 text-xl font-bold">Venda de balcão</h2>
 
       <div class="card !p-3 mb-4">
-        <label class="!text-gear-orange"><i class="fas fa-plus-circle"></i> Adicionar item</label>
+        <label class="!text-gear-orange"><i data-lucide="circle-plus"></i> Adicionar item</label>
         <div class="mt-2 flex gap-2">
           <select id="venda-add-tipo" class="!m-0 w-1/3" onchange="App.mudarTipoVenda()">
             <option value="produto">Peça</option>
@@ -335,9 +394,9 @@
 
       <div class="mt-6 flex gap-3">
         <button class="btn-secondary" onclick="App.fecharModal('modal-venda')">Cancelar</button>
-        <button class="btn-primary !bg-green-600 !bg-none" onclick="App.salvarVenda()"><i class="fas fa-check"></i> Vender</button>
-        <button id="btn-venda-cartao" class="btn-primary !bg-amber-600 !bg-none hidden" onclick="App.venderNoCartao()"><i class="fas fa-credit-card"></i> Cartao</button>
-        <button id="btn-venda-pix" class="btn-primary !bg-teal-600 !bg-none hidden" onclick="App.venderNoPix()"><i class="fas fa-qrcode"></i> Pix</button>
+        <button class="btn-primary !bg-green-600 !bg-none" onclick="App.salvarVenda()"><i data-lucide="check"></i> Vender</button>
+        <button id="btn-venda-cartao" class="btn-primary !bg-amber-600 !bg-none hidden" onclick="App.venderNoCartao()"><i data-lucide="credit-card"></i> Cartao</button>
+        <button id="btn-venda-pix" class="btn-primary !bg-teal-600 !bg-none hidden" onclick="App.venderNoPix()"><i data-lucide="qr-code"></i> Pix</button>
       </div>
     </div>
   </div>
@@ -345,7 +404,7 @@
   <!-- Pix: copia e cola + QR Code -->
   <div id="modal-pix" class="modal">
     <div class="modal-content">
-      <h2 class="mb-1 text-xl font-bold"><i class="fas fa-qrcode text-teal-400"></i> Cobrar no Pix</h2>
+      <h2 class="mb-1 text-xl font-bold"><i data-lucide="qr-code" class="text-teal-400"></i> Cobrar no Pix</h2>
       <p class="text-2xl font-bold text-teal-400" id="pix-valor">R$ 0,00</p>
       <p class="mb-3 text-xs text-slate-400" id="pix-desc"></p>
 
@@ -353,7 +412,7 @@
 
       <label class="mt-3">Pix copia e cola</label>
       <textarea id="pix-copia" class="!h-20 w-full text-xs" readonly onclick="this.select()"></textarea>
-      <button class="btn-secondary mt-2 w-full" onclick="App.copiarPix()"><i class="fas fa-copy"></i> Copiar código</button>
+      <button class="btn-secondary mt-2 w-full" onclick="App.copiarPix()"><i data-lucide="copy"></i> Copiar código</button>
 
       <p class="mt-3 text-center text-xs text-slate-400">
         Mostre o QR ao cliente ou envie o código. Confirme só depois que o Pix cair na sua conta.
@@ -361,7 +420,7 @@
 
       <div class="mt-4 flex gap-3">
         <button class="btn-secondary" onclick="App.fecharPix()">Cancelar</button>
-        <button class="btn-primary !bg-green-600 !bg-none" onclick="App.confirmarRecebimentoPix()"><i class="fas fa-check"></i> Confirmar recebimento</button>
+        <button class="btn-primary !bg-green-600 !bg-none" onclick="App.confirmarRecebimentoPix()"><i data-lucide="check"></i> Confirmar recebimento</button>
       </div>
     </div>
   </div>
@@ -401,21 +460,21 @@
   <div id="perfil-cliente" class="modal !bg-gear-900" style="z-index: 60;">
     <div class="flex h-full w-full flex-col bg-gear-900">
       <div class="flex items-center justify-between border-b border-gear-700 bg-gear-800 p-4">
-        <button onclick="App.fecharModal('perfil-cliente')" class="text-xl text-gear-orange"><i class="fas fa-arrow-left"></i></button>
+        <button onclick="App.fecharModal('perfil-cliente')" class="text-xl text-gear-orange" aria-label="Voltar"><i data-lucide="arrow-left" aria-hidden="true"></i></button>
         <h2 class="text-lg font-bold" id="pc-nome">Cliente</h2>
         <div class="flex gap-4">
-          <button onclick="App.editarCliente()" class="text-xl text-slate-400"><i class="fas fa-pen"></i></button>
-          <button onclick="App.excluirCliente()" class="text-xl text-red-500"><i class="fas fa-trash"></i></button>
+          <button onclick="App.editarCliente()" class="text-xl text-slate-400"><i data-lucide="pencil"></i></button>
+          <button onclick="App.excluirCliente()" class="text-xl text-red-500"><i data-lucide="trash-2"></i></button>
         </div>
       </div>
       <div class="flex-1 overflow-y-auto p-4">
         <div class="card">
-          <p class="text-sm text-slate-400"><i class="fas fa-motorcycle"></i> <span id="pc-moto"></span> (<span id="pc-placa" class="font-bold text-gear-orange"></span>)</p>
-          <p class="mt-1 text-sm text-slate-400"><i class="fab fa-whatsapp"></i> <span id="pc-tel"></span></p>
+          <p class="text-sm text-slate-400"><i data-lucide="bike"></i> <span id="pc-moto"></span> (<span id="pc-placa" class="font-bold text-gear-orange"></span>)</p>
+          <p class="mt-1 text-sm text-slate-400"><i data-lucide="message-circle"></i> <span id="pc-tel"></span></p>
         </div>
         <div class="mb-4 flex gap-2">
-          <button class="btn-primary flex-1 !p-3 !text-sm" onclick="App.abrirModalOS()"><i class="fas fa-wrench"></i> Nova OS</button>
-          <button class="btn-secondary flex-1 !p-3 !text-sm" onclick="App.abrirModalOrcamento()"><i class="fas fa-file-alt"></i> Orçamento</button>
+          <button class="btn-primary flex-1 !p-3 !text-sm" onclick="App.abrirModalOS()"><i data-lucide="wrench"></i> Nova OS</button>
+          <button class="btn-secondary flex-1 !p-3 !text-sm" onclick="App.abrirModalOrcamento()"><i data-lucide="file-text"></i> Orçamento</button>
         </div>
         <div class="sub-tab-container">
           <div class="sub-tab active" onclick="App.setPCTab('os', this)">OS</div>
@@ -432,7 +491,7 @@
     <div class="modal-content">
       <div class="mb-4 flex items-center justify-between">
         <h2 class="text-xl font-bold">Central de OS ativas</h2>
-        <button onclick="App.fecharModal('modal-central-os')" class="text-xl text-gear-orange"><i class="fas fa-times"></i></button>
+        <button onclick="App.fecharModal('modal-central-os')" class="text-xl text-gear-orange"><i data-lucide="x"></i></button>
       </div>
       <div id="lista-central-os" class="space-y-3 overflow-y-auto"></div>
     </div>
@@ -471,12 +530,12 @@
         <input type="number" id="os-valor-pago" step="0.01">
         <p class="mt-1 text-xs text-green-300">O restante fica como pendência financeira do cliente.</p>
         <button id="btn-os-cartao" class="btn-primary mt-2 !bg-amber-600 !bg-none !text-sm hidden" onclick="App.cobrarOSnoCartao()">
-          <i class="fas fa-credit-card"></i> Cobrar no cartao
+          <i data-lucide="credit-card"></i> Cobrar no cartao
         </button>
       </div>
 
       <div class="card !p-3 mb-4">
-        <label class="!text-gear-orange"><i class="fas fa-plus-circle"></i> Adicionar item</label>
+        <label class="!text-gear-orange"><i data-lucide="circle-plus"></i> Adicionar item</label>
         <div class="mt-2 flex gap-2">
           <select id="os-add-tipo" class="!m-0 w-1/3" onchange="App.mudarTipoItemOS()">
             <option value="produto">Peça</option>
@@ -530,8 +589,8 @@
   <div id="modal-nota" class="modal">
     <div class="modal-content !max-h-[95vh]">
       <div class="mb-2 flex items-center justify-between">
-        <h2 class="text-xl font-bold"><i class="fas fa-receipt text-gear-orange"></i> Conferir nota</h2>
-        <button onclick="App.cancelarNota()" class="text-xl text-gear-orange"><i class="fas fa-times"></i></button>
+        <h2 class="text-xl font-bold"><i data-lucide="receipt-text" class="text-gear-orange"></i> Conferir nota</h2>
+        <button onclick="App.cancelarNota()" class="text-xl text-gear-orange"><i data-lucide="x"></i></button>
       </div>
       <p class="mb-4 text-xs text-slate-400">
         A leitura é automática e pode errar. Confira tudo antes de confirmar — só depois o estoque sobe e a despesa entra no caixa.
@@ -551,28 +610,25 @@
 
       <div class="mt-4 flex gap-3">
         <button class="btn-secondary" onclick="App.cancelarNota()">Cancelar</button>
-        <button class="btn-primary" onclick="App.confirmarNota()"><i class="fas fa-check"></i> Confirmar entrada</button>
+        <button class="btn-primary" onclick="App.confirmarNota()"><i data-lucide="check"></i> Confirmar entrada</button>
       </div>
     </div>
   </div>
 
   <!-- Navegação inferior -->
-  <nav class="bottom-nav">
-    <div class="nav-item active" onclick="App.switchTab('inicio', this)"><i class="fas fa-home"></i>Início</div>
-    <div class="nav-item" onclick="App.switchTab('estoque', this)"><i class="fas fa-boxes"></i>Estoque</div>
-    <div class="nav-item" onclick="App.switchTab('servicos', this)"><i class="fas fa-wrench"></i>Serviços</div>
-    <div class="nav-item" onclick="App.switchTab('caixa', this)"><i class="fas fa-wallet"></i>Caixa</div>
-    <div class="nav-item" onclick="App.switchTab('clientes', this)"><i class="fas fa-users"></i>Clientes</div>
-    <div class="nav-item" onclick="App.switchTab('fornecedores', this)"><i class="fas fa-truck"></i>Fornec.</div>
-    <div class="nav-item" onclick="App.switchTab('analises', this)"><i class="fas fa-chart-bar"></i>Análises</div>
+  <nav class="bottom-nav" aria-label="Navegação principal">
+    <button class="nav-item active" data-tab-link="inicio" onclick="App.switchTab('inicio', this)"><i data-lucide="house" aria-hidden="true"></i><span>Início</span></button>
+    <button class="nav-item" data-tab-link="operacoes" onclick="App.switchTab('operacoes', this)"><i data-lucide="layout-grid" aria-hidden="true"></i><span>Operações</span></button>
+    <button class="nav-item" data-tab-link="caixa" onclick="App.switchTab('caixa', this)"><i data-lucide="wallet-cards" aria-hidden="true"></i><span>Caixa</span></button>
+    <button class="nav-item" data-tab-link="clientes" onclick="App.switchTab('clientes', this)"><i data-lucide="users" aria-hidden="true"></i><span>Clientes</span></button>
   </nav>
 
   <!-- Maquininha PlugPag -->
   <div id="modal-plugpag" class="modal">
     <div class="modal-content">
       <div class="mb-4 flex items-center justify-between">
-        <h2 class="text-xl font-bold"><i class="fas fa-credit-card text-gear-orange"></i> Maquininha</h2>
-        <button onclick="App.fecharPlugPag()" class="text-xl text-gear-orange"><i class="fas fa-times"></i></button>
+        <h2 class="text-xl font-bold"><i data-lucide="credit-card" class="text-gear-orange"></i> Maquininha</h2>
+        <button onclick="App.fecharPlugPag()" class="text-xl text-gear-orange"><i data-lucide="x"></i></button>
       </div>
       <p id="pp-valor" class="text-center text-3xl font-bold text-white"></p>
       <p id="pp-desc" class="text-center text-sm text-slate-400"></p>
@@ -580,13 +636,13 @@
 
       <div id="pp-opcoes" class="mt-4 flex flex-col gap-2">
         <button class="btn-primary !bg-green-600 !bg-none" onclick="App.ppDebito()">
-          <i class="fas fa-money-bill-wave"></i> Debito
+          <i data-lucide="banknote"></i> Debito
         </button>
         <button class="btn-primary !bg-blue-600 !bg-none" onclick="App.ppCreditoVista()">
-          <i class="fas fa-credit-card"></i> Credito a vista
+          <i data-lucide="credit-card"></i> Credito a vista
         </button>
         <button class="btn-primary !bg-purple-600 !bg-none" onclick="App.ppCreditoParc()">
-          <i class="fas fa-layer-group"></i> Credito parcelado
+          <i data-lucide="layers-3"></i> Credito parcelado
         </button>
         <div id="pp-parcelas-sel" class="hidden flex items-center gap-2">
           <label class="text-sm text-slate-300 !mb-0">Parcelas:</label>
@@ -598,16 +654,16 @@
           <button class="btn-primary !p-2 !text-sm" onclick="App.ppConfirmarParc()">OK</button>
         </div>
         <button class="btn-primary !bg-teal-600 !bg-none" onclick="App.ppPix()">
-          <i class="fas fa-qrcode"></i> Pix na maquininha
+          <i data-lucide="qr-code"></i> Pix na maquininha
         </button>
       </div>
 
       <button id="btn-pp-abortar" class="btn-danger mt-4 hidden" onclick="App.abortarPagamento()">
-        <i class="fas fa-ban"></i> Cancelar operacao
+        <i data-lucide="ban"></i> Cancelar operacao
       </button>
 
       <div id="pp-resultado" class="mt-4 hidden rounded-lg border border-green-600 bg-green-900/30 p-3">
-        <p class="text-sm text-green-300"><i class="fas fa-check-circle"></i> Bandeira: <span id="pp-bandeira"></span></p>
+        <p class="text-sm text-green-300"><i data-lucide="circle-check"></i> Bandeira: <span id="pp-bandeira"></span></p>
         <p class="text-sm text-green-300">NSU: <span id="pp-nsu"></span></p>
         <p class="text-sm text-green-300">Aut: <span id="pp-autorizacao"></span></p>
       </div>
