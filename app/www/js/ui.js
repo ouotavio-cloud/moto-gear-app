@@ -67,11 +67,26 @@ export function pararCarregando() {
 }
 
 export function abrirModal(id) {
-  el(id)?.classList.add('active');
+  const node = el(id);
+  if (!node) return;
+  node.classList.add('active');
+  node.setAttribute('role', 'dialog');
+  node.setAttribute('aria-modal', 'true');
+  node.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('overflow-hidden');
+
+  requestAnimationFrame(() => {
+    const foco = node.querySelector('.modal-header button, input:not([type="hidden"]), select, textarea, button');
+    foco?.focus({ preventScroll: true });
+  });
 }
 
 export function fecharModal(id) {
-  el(id)?.classList.remove('active');
+  const node = el(id);
+  if (!node) return;
+  node.classList.remove('active');
+  node.setAttribute('aria-hidden', 'true');
+  if (!document.querySelector('.modal.active')) document.body.classList.remove('overflow-hidden');
 }
 
 export function atualizarIcones() {
@@ -141,6 +156,7 @@ export function switchTab(tabId, elemento) {
   };
   const titulo = el('titulo-pagina');
   if (titulo) titulo.textContent = titulos[tabId] || 'Moto Gear';
+  window.scrollTo({ top: 0, behavior: 'auto' });
   renderTab(tabId);
   atualizarIcones();
 }
