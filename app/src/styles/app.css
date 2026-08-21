@@ -440,6 +440,11 @@
     @apply h-5 w-5;
   }
 
+  .update-banner {
+    animation: updateBannerEnter 0.32s ease-out both;
+    padding-bottom: max(env(safe-area-inset-bottom), 0.75rem);
+  }
+
   .assistant-panel {
     @apply flex h-[min(86vh,46rem)] max-h-[calc(100dvh-1rem)] flex-col overflow-hidden pb-3;
   }
@@ -476,6 +481,12 @@
 
   .assistant-draft {
     @apply shrink-0 rounded-2xl border border-orange-400/30 bg-orange-500/10 p-3;
+    animation: assistantDraftEnter 0.28s ease-out both;
+    transform-origin: center bottom;
+  }
+
+  .assistant-draft-complete {
+    animation: assistantDraftComplete 0.22s ease-in both;
   }
 
   .assistant-draft-fields {
@@ -621,6 +632,35 @@
   50% {
     transform: scale(0.96);
     box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.12);
+  }
+}
+
+@keyframes assistantDraftEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes assistantDraftComplete {
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+}
+
+@keyframes updateBannerEnter {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

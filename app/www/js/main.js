@@ -309,7 +309,7 @@ async function iniciar() {
   atualizarIcones();
 
   // Só o APK se atualiza por download; no navegador basta recarregar a página.
-  if (isNativo()) atualizacao.verificarAtualizacao();
+  if (isNativo()) atualizacao.monitorarAtualizacoes();
 }
 
 iniciar();
