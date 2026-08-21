@@ -1,6 +1,7 @@
 /** Ajudante contextual: conversa, voz e preenchimento seguro de rascunhos. */
 
 import { req } from './api.js';
+import { plugin } from './files.js';
 import { abrirModal, fecharModal, el, esc, setVal, showToast, atualizarIcones } from './ui.js';
 
 let historico = [];
@@ -36,6 +37,7 @@ function rotuloRascunho(tipo) {
 function renderRascunho(rascunho) {
   rascunhoAtual = rascunho || null;
   const area = el('assistente-rascunho');
+  area.classList.remove('assistant-draft-complete');
   if (!rascunhoAtual) {
     area.classList.add('hidden');
     area.innerHTML = '';
@@ -141,6 +143,11 @@ export async function alternarGravacao() {
     return showToast('Gravação de áudio não está disponível neste aparelho.');
   }
   try {
+    const nativo = plugin('MotoGearNative');
+    if (nativo) {
+      const permissao = await nativo.requestMicrophone();
+      if (!permissao?.granted) return showToast('O microfone precisa ser permitido nas configurações do aparelho.');
+    }
     fluxoAudio = await navigator.mediaDevices.getUserMedia({ audio: true });
     const tipo = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((item) => MediaRecorder.isTypeSupported(item));
     gravador = new MediaRecorder(fluxoAudio, tipo ? { mimeType: tipo } : undefined);
@@ -172,31 +179,37 @@ function preencher(campos, dados) {
 export function aplicarRascunho() {
   if (!rascunhoAtual) return;
   const { tipo, dados } = rascunhoAtual;
-  fecharAssistente();
-
-  if (tipo === 'produto') {
-    window.App.switchTab('estoque');
-    window.App.abrirModalProduto();
-    preencher({ nome: 'prod-nome', codigoBarras: 'prod-codigo', categoria: 'prod-categoria', marca: 'prod-marca', custo: 'prod-custo', venda: 'prod-venda', qtd: 'prod-qtd', min: 'prod-min' }, dados);
-  } else if (tipo === 'servico') {
-    window.App.switchTab('servicos');
-    window.App.abrirModalServico();
-    preencher({ nome: 'serv-nome', valor: 'serv-valor' }, dados);
-  } else if (tipo === 'cliente') {
-    window.App.switchTab('clientes');
-    window.App.abrirModalCliente();
-    preencher({ nome: 'cli-nome', tel: 'cli-tel', placa: 'cli-placa', moto: 'cli-moto' }, dados);
-  } else if (tipo === 'fornecedor') {
-    window.App.switchTab('fornecedores');
-    window.App.abrirModalFornecedor();
-    preencher({ nome: 'forn-nome', cnpj: 'forn-cnpj', tel: 'forn-tel', vendedor: 'forn-vendedor', obs: 'forn-obs' }, dados);
-  } else if (tipo === 'despesa') {
-    window.App.switchTab('caixa');
-    window.App.abrirModalDespesa();
-    preencher({ desc: 'despesa-desc', valor: 'despesa-valor' }, dados);
-  }
+  const area = el('assistente-rascunho');
+  area?.classList.add('assistant-draft-complete');
   rascunhoAtual = null;
-  showToast('Rascunho preenchido. Confira antes de salvar.');
+  adicionarMensagem('assistant', 'Rascunho enviado para o formulário. Confira os dados e toque em Salvar para concluir.');
+  setTimeout(() => {
+    renderRascunho(null);
+    fecharAssistente();
+
+    if (tipo === 'produto') {
+      window.App.switchTab('estoque');
+      window.App.abrirModalProduto();
+      preencher({ nome: 'prod-nome', codigoBarras: 'prod-codigo', categoria: 'prod-categoria', marca: 'prod-marca', custo: 'prod-custo', venda: 'prod-venda', qtd: 'prod-qtd', min: 'prod-min' }, dados);
+    } else if (tipo === 'servico') {
+      window.App.switchTab('servicos');
+      window.App.abrirModalServico();
+      preencher({ nome: 'serv-nome', valor: 'serv-valor' }, dados);
+    } else if (tipo === 'cliente') {
+      window.App.switchTab('clientes');
+      window.App.abrirModalCliente();
+      preencher({ nome: 'cli-nome', tel: 'cli-tel', placa: 'cli-placa', moto: 'cli-moto' }, dados);
+    } else if (tipo === 'fornecedor') {
+      window.App.switchTab('fornecedores');
+      window.App.abrirModalFornecedor();
+      preencher({ nome: 'forn-nome', cnpj: 'forn-cnpj', tel: 'forn-tel', vendedor: 'forn-vendedor', obs: 'forn-obs' }, dados);
+    } else if (tipo === 'despesa') {
+      window.App.switchTab('caixa');
+      window.App.abrirModalDespesa();
+      preencher({ desc: 'despesa-desc', valor: 'despesa-valor' }, dados);
+    }
+    showToast('Rascunho preenchido. Confira antes de salvar.');
+  }, 220);
 }
 
 export function enviarComEnter(evento) {

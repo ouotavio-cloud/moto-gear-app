@@ -15,10 +15,33 @@ import { plugin } from './files.js';
 import { el } from './ui.js';
 
 const REPO = 'ouotavio-cloud/moto-gear-app';
+const BUILD_LEGADO = 19;
+const INTERVALO_VERIFICACAO = 5 * 60 * 1000;
 
 /** Número de build instalado (0 em dev/navegador). */
 export function buildInstalado() {
   return Number(globalThis.MOTOGEAR_BUILD) || 0;
+}
+
+/**
+ * Builds antigos carregam `versao.js` diretamente do Render, onde o valor é
+ * zero. O plugin nativo passa a ser a fonte confiável; build 19 é a ponte para
+ * que quem já instalou a versão anterior também receba esta correção.
+ */
+export async function obterBuildInstalado() {
+  const nativo = plugin('MotoGearNative');
+  if (nativo) {
+    try {
+      const info = await nativo.getAppInfo();
+      const build = Number(info?.build);
+      if (build > 0) return build;
+    } catch (err) {
+      console.warn('Não consegui ler a versão nativa; usando compatibilidade.', err);
+    }
+  }
+  const carimbado = buildInstalado();
+  if (carimbado > 0) return carimbado;
+  return globalThis.Capacitor?.isNativePlatform?.() ? BUILD_LEGADO : 0;
 }
 
 /** Extrai o número de build de uma tag como "build-42" ou "v2.0.42". */
@@ -34,14 +57,17 @@ export function escolherApk(assets) {
 }
 
 async function ultimoRelease() {
-  const resp = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-    headers: { Accept: 'application/vnd.github+json' }
+  const resp = await fetch(`https://api.github.com/repos/${REPO}/releases/latest?agora=${Date.now()}`, {
+    headers: { Accept: 'application/vnd.github+json' },
+    cache: 'no-store'
   });
   if (!resp.ok) return null; // 404 = ainda não há release publicado
   return resp.json();
 }
 
 let urlNovoApk = null;
+let buildNovoApk = 0;
+let buildAdiado = 0;
 
 /**
  * Checa se há versão mais nova e, se houver, mostra a faixa de atualização.
@@ -49,21 +75,38 @@ let urlNovoApk = null;
  */
 export async function verificarAtualizacao() {
   try {
-    if (buildInstalado() === 0) return;
+    const instalado = await obterBuildInstalado();
+    if (instalado === 0) return;
 
     const release = await ultimoRelease();
     if (!release) return;
 
-    if (buildDoTag(release.tag_name) <= buildInstalado()) return;
+    const buildDisponivel = buildDoTag(release.tag_name);
+    if (buildDisponivel <= instalado || buildDisponivel === buildAdiado) return;
 
     const apk = escolherApk(release.assets);
     if (!apk) return;
 
     urlNovoApk = apk.browser_download_url;
+    buildNovoApk = buildDisponivel;
     mostrarBanner(release.name || release.tag_name);
   } catch (err) {
     console.error('Não consegui verificar atualização', err);
   }
+}
+
+let monitorIniciado = false;
+
+/** Verifica ao abrir, ao voltar para o app e periodicamente enquanto ele fica aberto. */
+export function monitorarAtualizacoes() {
+  if (monitorIniciado) return;
+  monitorIniciado = true;
+  verificarAtualizacao();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') verificarAtualizacao();
+  });
+  window.addEventListener('focus', verificarAtualizacao);
+  window.setInterval(verificarAtualizacao, INTERVALO_VERIFICACAO);
 }
 
 function mostrarBanner(versao) {
@@ -75,6 +118,7 @@ function mostrarBanner(versao) {
 }
 
 export function adiarAtualizacao() {
+  buildAdiado = buildNovoApk;
   el('banner-atualizacao')?.classList.add('hidden');
 }
 

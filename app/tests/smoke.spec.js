@@ -176,6 +176,7 @@ test('ajudante prepara serviço como rascunho e abre formulário para confirmaç
   await page.getByRole('button', { name: /Revisar no formulário/ }).click();
 
   await expect(page.locator('#modal-servico')).toHaveClass(/active/);
+  await expect(page.locator('#assistente-rascunho')).toBeHidden();
   await expect(page.locator('#serv-nome')).toHaveValue('Troca de óleo Motul');
   await expect(page.locator('#serv-valor')).toHaveValue('45');
 });
@@ -649,6 +650,21 @@ test('lógica de atualização: extrai o build da tag e escolhe o APK universal'
   expect(r.tagVazia).toBe(0);
   expect(r.escolhido).toBe('u'); // prefere o universal
   expect(r.semApk).toBeNull();
+});
+
+test('atualização lê o build nativo e mantém compatibilidade com o APK build 19', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  const builds = await page.evaluate(async () => {
+    const m = await import('/js/atualizacao.js');
+    globalThis.MOTOGEAR_BUILD = 0;
+    globalThis.Capacitor = { isNativePlatform: () => true, Plugins: {} };
+    const legado = await m.obterBuildInstalado();
+    globalThis.Capacitor.Plugins.MotoGearNative = { getAppInfo: async () => ({ build: 27, version: '2.0.27' }) };
+    const nativo = await m.obterBuildInstalado();
+    delete globalThis.Capacitor;
+    return { legado, nativo };
+  });
+  expect(builds).toEqual({ legado: 19, nativo: 27 });
 });
 
 test('aviso de nova versão aparece com build mais novo, e "Depois" fecha', async ({ page, baseURL }) => {
