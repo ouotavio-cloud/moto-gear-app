@@ -430,6 +430,108 @@
   .sub-tab.active {
     @apply bg-gear-orange font-bold text-white;
   }
+
+  .assistant-fab {
+    @apply fixed right-4 z-[45] flex min-h-12 items-center gap-2 rounded-full border border-orange-400/30 bg-gear-orange px-4 py-3 text-sm font-semibold text-white shadow-2xl shadow-orange-950/40 transition-all hover:bg-orange-500 active:scale-95;
+    bottom: calc(6.25rem + env(safe-area-inset-bottom));
+  }
+
+  .assistant-fab svg {
+    @apply h-5 w-5;
+  }
+
+  .assistant-panel {
+    @apply flex h-[min(86vh,46rem)] max-h-[calc(100dvh-1rem)] flex-col overflow-hidden pb-3;
+  }
+
+  .assistant-messages {
+    @apply flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1 py-3;
+    overscroll-behavior: contain;
+  }
+
+  .assistant-message {
+    @apply max-w-[88%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed;
+  }
+
+  .assistant-message-ai {
+    @apply self-start rounded-bl-md border border-slate-700/70 bg-gear-700 text-slate-100;
+  }
+
+  .assistant-message-user {
+    @apply self-end rounded-br-md bg-gear-orange text-white;
+  }
+
+  .assistant-suggestions {
+    @apply flex shrink-0 gap-2 overflow-x-auto py-2;
+    scrollbar-width: none;
+  }
+
+  .assistant-suggestions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .assistant-chip {
+    @apply min-h-10 shrink-0 rounded-full border border-slate-700 bg-gear-800 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-gear-orange hover:text-white;
+  }
+
+  .assistant-draft {
+    @apply shrink-0 rounded-2xl border border-orange-400/30 bg-orange-500/10 p-3;
+  }
+
+  .assistant-draft-fields {
+    @apply grid grid-cols-2 gap-2;
+  }
+
+  .assistant-draft-fields div {
+    @apply min-w-0 rounded-xl bg-gear-900/70 p-2;
+  }
+
+  .assistant-draft-fields span {
+    @apply block truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500;
+  }
+
+  .assistant-draft-fields strong {
+    @apply mt-0.5 block break-words text-sm text-white;
+  }
+
+  .assistant-status {
+    @apply py-1 text-center text-xs text-orange-300;
+  }
+
+  .assistant-composer {
+    @apply grid shrink-0 grid-cols-[minmax(0,1fr)_auto_auto] items-end gap-2 border-t border-slate-700/70 pt-3;
+  }
+
+  .assistant-composer textarea {
+    @apply !m-0 min-h-12 max-h-28 resize-none py-3 normal-case;
+  }
+
+  .assistant-tool,
+  .assistant-send {
+    @apply flex min-h-12 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition-all disabled:cursor-wait disabled:opacity-50;
+  }
+
+  .assistant-tool {
+    @apply border border-slate-700 bg-gear-800 text-slate-200;
+  }
+
+  .assistant-tool.recording {
+    @apply border-red-400 bg-red-500/20 text-red-300;
+    animation: assistantPulse 1.2s ease-in-out infinite;
+  }
+
+  .assistant-send {
+    @apply bg-gear-orange text-white;
+  }
+
+  .assistant-tool svg,
+  .assistant-send svg {
+    @apply h-4 w-4;
+  }
+
+  .assistant-disclaimer {
+    @apply mt-2 text-center text-[10px] leading-relaxed text-slate-500;
+  }
 }
 
 @media (min-width: 768px) {
@@ -441,6 +543,10 @@
     @apply rounded-3xl border border-slate-700/80;
     transform: translateY(20px) scale(0.98);
     animation: modalEnter 0.24s forwards;
+  }
+
+  .assistant-fab {
+    right: max(1.5rem, calc((100vw - 48rem) / 2));
   }
 }
 
@@ -508,6 +614,13 @@
 @keyframes modalEnter {
   to {
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes assistantPulse {
+  50% {
+    transform: scale(0.96);
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.12);
   }
 }
 

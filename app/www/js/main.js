@@ -21,6 +21,7 @@ import * as plugpag from './plugpag.js';
 import * as pix from './pix.js';
 import { carregarConfigPix } from './pix.js';
 import * as atualizacao from './atualizacao.js';
+import * as assistente from './assistente.js';
 import { isNativo } from './files.js';
 import { renderDashboard } from './dashboard.js';
 
@@ -236,6 +237,15 @@ const App = {
   processarFotoNota: notafiscal.processarFotoNota,
   confirmarNota: notafiscal.confirmarNota,
   cancelarNota: notafiscal.cancelarNota,
+
+  // Ajudante contextual e comandos por voz
+  abrirAssistente: assistente.abrirAssistente,
+  fecharAssistente: assistente.fecharAssistente,
+  enviarMensagemIA: assistente.enviarMensagem,
+  enviarAssistenteComEnter: assistente.enviarComEnter,
+  usarSugestaoIA: assistente.usarSugestao,
+  alternarGravacaoIA: assistente.alternarGravacao,
+  aplicarRascunhoIA: assistente.aplicarRascunho,
 
   // Maquininha PlugPag
   ppDebito: () => plugpag.executarCobranca('debito', 1),

@@ -36,6 +36,7 @@ export async function processarFotoNota(evento) {
     }
     renderRevisaoNota();
     abrirModal('modal-nota');
+    if (notaTemp._ia?.fallback) showToast('Nota interpretada automaticamente pelo serviço alternativo.');
   } catch (err) {
     console.error('Leitura de nota falhou', err);
     showToast(err.message || 'Não consegui ler esta nota.');

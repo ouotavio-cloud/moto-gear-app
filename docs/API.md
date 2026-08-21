@@ -90,7 +90,16 @@ pendência já quitada; `400` para dados inválidos.
 | `POST` | `/nota-fiscal/entrada` | `{fornecedor, cnpj?, numero?, total, margem?, cadastrarFornecedor?, itens}` |
 
 `itens` da entrada: `[{nome, qtd, custo, produtoId?}]`. Sem `produtoId`, a peça é
-criada. Sem `GEMINI_API_KEY` no servidor, a leitura responde `503`.
+criada. Sem Gemini nem Cloudflare configurados, a leitura responde `503`.
+
+### Ajudante
+
+`POST /assistente/conversar` recebe `mensagem`, `tela` e até seis itens de
+`historico`. A resposta contém texto, sugestões e, quando solicitado, um
+rascunho permitido para o aplicativo preencher e o usuário revisar.
+
+`POST /assistente/transcrever` recebe `audioBase64` e `mimeType`. A rota usa o
+Groq Whisper e devolve `{ "texto": "..." }`.
 
 ## Backup e importação
 
