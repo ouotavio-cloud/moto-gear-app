@@ -252,6 +252,8 @@ test('venda de balcão baixa o estoque e credita o caixa', async ({ page, baseUR
 });
 
 test('maquininha recebe valor, crédito e parcelamento antes de registrar a venda', async ({ page, baseURL }) => {
+  // A atualização é outra integração; neste teste ela não deve cobrir os botões.
+  await page.route('https://api.github.com/repos/**', (route) => route.fulfill({ status: 404, body: '{}' }));
   await page.addInitScript(() => {
     globalThis._plugPagCalls = [];
     globalThis.Capacitor = {
@@ -275,8 +277,6 @@ test('maquininha recebe valor, crédito e parcelamento antes de registrar a vend
     };
   });
   await abrirLogado(page, baseURL, token);
-  const avisoAtualizacao = page.locator('#banner-atualizacao');
-  if (await avisoAtualizacao.isVisible()) await avisoAtualizacao.getByRole('button', { name: 'Depois' }).click();
   await cadastrarProduto(page, { nome: 'Kit freio', custo: 20, venda: 67.89, qtd: 3 });
 
   await irPara(page, 'Caixa');
