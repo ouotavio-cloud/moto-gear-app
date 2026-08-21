@@ -251,6 +251,54 @@ test('venda de balcão baixa o estoque e credita o caixa', async ({ page, baseUR
   expect(produtos[0].qtd).toBe(5);
 });
 
+test('maquininha recebe valor, crédito e parcelamento antes de registrar a venda', async ({ page, baseURL }) => {
+  await page.addInitScript(() => {
+    globalThis._plugPagCalls = [];
+    globalThis.Capacitor = {
+      isNativePlatform: () => true,
+      Plugins: {
+        PlugPag: {
+          listarDispositivos: async () => ({
+            selecionado: 'AA:BB:CC:DD:EE:FF',
+            dispositivos: [{ id: 'AA:BB:CC:DD:EE:FF', nome: 'Moderninha Teste', selecionado: true }]
+          }),
+          inicializar: async () => ({ ok: true, autenticado: true }),
+          selecionarDispositivo: async ({ id }) => ({ ok: true, id }),
+          addListener: () => ({ remove: async () => {} }),
+          pagar: async (dados) => {
+            globalThis._plugPagCalls.push(dados);
+            return { aprovado: true, bandeira: 'VISA', nsu: '123', transacaoCode: 'ABC' };
+          },
+          abortar: async () => ({ ok: true })
+        }
+      }
+    };
+  });
+  await abrirLogado(page, baseURL, token);
+  await cadastrarProduto(page, { nome: 'Kit freio', custo: 20, venda: 67.89, qtd: 3 });
+
+  await irPara(page, 'Caixa');
+  await botaoDaAba(page, 'caixa', /Nova venda/i).click();
+  await page.fill('#venda-add-qtd', '1');
+  await page.locator('#modal-venda button', { hasText: 'Adicionar' }).click();
+  await page.locator('#btn-venda-cartao').click();
+
+  await expect(page.locator('#modal-plugpag')).toHaveClass(/active/);
+  await expect(page.locator('#pp-dispositivo')).toHaveValue('AA:BB:CC:DD:EE:FF');
+  await page.getByRole('button', { name: 'Crédito parcelado' }).click();
+  await page.selectOption('#pp-parcelas-qtd', '3');
+  await page.selectOption('#pp-parcelas-tipo', 'credito_parc_vendedor');
+  await page.getByRole('button', { name: 'Continuar cobrança' }).click();
+
+  await expect.poll(() => page.evaluate(() => globalThis._plugPagCalls[0])).toEqual({
+    valorCentavos: 6789,
+    tipo: 'credito_parc_vendedor',
+    parcelas: 3
+  });
+  await expect(page.locator('#pp-status')).toContainText('Pagamento aprovado');
+  await expect.poll(async () => (await estado(page)).produtos[0].qtd).toBe(2);
+});
+
 test('venda acima do estoque é recusada pelo servidor', async ({ page, baseURL }) => {
   await abrirLogado(page, baseURL, token);
   await cadastrarProduto(page, { nome: 'Corrente', custo: 50, venda: 120, qtd: 2 });

@@ -253,8 +253,10 @@ const App = {
   ppCreditoParc: () => plugpag.escolherParcelas(),
   ppConfirmarParc: () => {
     const p = parseInt(document.getElementById('pp-parcelas-qtd').value) || 2;
-    plugpag.executarCobranca('credito_parc', p);
+    const tipo = document.getElementById('pp-parcelas-tipo').value;
+    plugpag.executarCobranca(tipo, p);
   },
+  ppSelecionarMaquininha: plugpag.selecionarMaquininha,
   ppPix: () => plugpag.executarCobranca('pix', 1),
   abortarPagamento: plugpag.abortarPagamento,
   fecharPlugPag: plugpag.fecharPlugPag,
