@@ -4,7 +4,6 @@ import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.os.Build
 import br.com.uol.pagseguro.plugpag.PlugPag
-import br.com.uol.pagseguro.plugpag.PlugPagAppIdentification
 import br.com.uol.pagseguro.plugpag.PlugPagAuthenticationListener
 import br.com.uol.pagseguro.plugpag.PlugPagDevice
 import br.com.uol.pagseguro.plugpag.PlugPagPaymentData
@@ -47,8 +46,13 @@ class PlugPagPlugin : Plugin() {
 
     override fun load() {
         super.load()
-        val identification = PlugPagAppIdentification("Moto Gear", BuildConfig.VERSION_NAME)
-        plugPag = PlugPag(activity.applicationContext, identification)
+        plugPag = PlugPag(activity.applicationContext)
+        val versao = try {
+            activity.packageManager.getPackageInfo(activity.packageName, 0).versionName ?: "2.0"
+        } catch (_: Exception) {
+            "2.0"
+        }
+        plugPag.setVersionName("Moto Gear", versao.take(10))
     }
 
     @PluginMethod
@@ -60,7 +64,7 @@ class PlugPagPlugin : Plugin() {
             .put("autenticado", try { plugPag.isAuthenticated } catch (_: Exception) { false })
             .put("dispositivoSelecionado", deviceId)
             .put("operacaoEmAndamento", operacaoEmAndamento.get())
-            .put("sdk", try { plugPag.libVersion ?: "" } catch (_: Exception) { "" }))
+            .put("sdk", "4.15.1"))
     }
 
     @PluginMethod
@@ -225,7 +229,8 @@ class PlugPagPlugin : Plugin() {
                     PlugPag.RET_OK
                 }
 
-                val conexao = plugPag.initBTConnection(PlugPagDevice(deviceId, tipo == "pix"))
+                val dispositivo = if (tipo == "pix") PlugPagDevice(true) else PlugPagDevice(deviceId)
+                val conexao = plugPag.initBTConnection(dispositivo)
                 if (conexao != PlugPag.RET_OK) {
                     call.reject("Não foi possível conectar à maquininha (código $conexao). Confira se ela está ligada, próxima e pareada.", "CONNECTION_$conexao")
                     return@Thread
