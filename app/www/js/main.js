@@ -4,7 +4,7 @@
  */
 
 import { carregarEstado, entrar, cadastrarOficina, cadastrarFuncionario, temSessao, servidor, quandoDeslogar } from './api.js';
-import { setRenderers, renderAll, switchTab, fecharModal, showToast, el, setVal, txt, carregando, pararCarregando } from './ui.js';
+import { setRenderers, renderAll, switchTab, fecharModal, showToast, el, setVal, txt, carregando, pararCarregando, abrirDrawer, fecharDrawer } from './ui.js';
 import * as estoque from './estoque.js';
 import * as servicos from './servicos.js';
 import * as caixa from './caixa.js';
@@ -147,6 +147,8 @@ async function fazerCadastro() {
 const App = {
   switchTab,
   fecharModal,
+  abrirDrawer,
+  fecharDrawer,
   fazerLogin,
   fazerCadastro,
   enviarFormLogin,

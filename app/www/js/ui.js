@@ -74,6 +74,16 @@ export function fecharModal(id) {
   el(id)?.classList.remove('active');
 }
 
+/* -------------------------------- drawer --------------------------------- */
+
+export function abrirDrawer() {
+  el('drawer-overlay')?.classList.add('active');
+}
+
+export function fecharDrawer() {
+  el('drawer-overlay')?.classList.remove('active');
+}
+
 /* ------------------------------- navegação -------------------------------- */
 
 let renderers = {};

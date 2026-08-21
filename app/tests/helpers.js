@@ -42,7 +42,15 @@ export function coletarErros(page) {
   return erros;
 }
 
-export const irPara = (page, aba) => page.locator('.nav-item', { hasText: aba }).click();
+export async function irPara(page, aba) {
+  const navItem = page.locator('.nav-item', { hasText: aba });
+  if (await navItem.count() > 0) {
+    await navItem.click();
+  } else {
+    await page.locator('#btn-abrir-drawer').click();
+    await page.locator('.drawer-item', { hasText: aba }).click();
+  }
+}
 
 /**
  * Botão dentro de uma aba específica. Vários rótulos ("VENDER", "NOVO CLIENTE")
