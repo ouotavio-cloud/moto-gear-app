@@ -79,7 +79,8 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
-    implementation 'br.com.uol.pagseguro.plugpagservice.wrapper:wrapper:1.35.0'
+    // SDK oficial para conectar o celular às maquininhas PagBank por Bluetooth.
+    implementation 'br.com.uol.pagseguro:plugpag:4.15.1'
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
