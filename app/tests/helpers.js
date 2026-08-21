@@ -43,13 +43,29 @@ export function coletarErros(page) {
 }
 
 export async function irPara(page, aba) {
-  const navItem = page.locator('.nav-item', { hasText: aba });
-  if (await navItem.count() > 0) {
-    await navItem.click();
-  } else {
-    await page.locator('#btn-abrir-drawer').click();
-    await page.locator('.drawer-item', { hasText: aba }).click();
+  const tabs = {
+    'Início': 'inicio',
+    'Operações': 'operacoes',
+    'Estoque': 'estoque',
+    'Serviços': 'servicos',
+    'Caixa': 'caixa',
+    'Clientes': 'clientes',
+    'Fornec.': 'fornecedores',
+    'Análises': 'analises'
+  };
+  const tab = tabs[aba];
+  const principal = page.locator(`.bottom-nav [data-tab-link="${tab}"]`);
+  if (await principal.count()) {
+    await principal.click();
+    return;
   }
+  await page.locator('.profile-trigger').click();
+  await page.locator(`#menu-lateral [data-tab-link="${tab}"]`).click();
+}
+
+export async function abrirConfig(page) {
+  await page.locator('.profile-trigger').click();
+  await page.locator('#menu-lateral').getByRole('button', { name: /Configurações/ }).click();
 }
 
 /**
@@ -60,7 +76,7 @@ export const botaoDaAba = (page, aba, nome) => page.locator(`#tab-${aba}`).getBy
 
 export async function cadastrarProduto(page, { nome, custo = 10, venda = 25, qtd = 5, min = 2 }) {
   await irPara(page, 'Estoque');
-  await page.locator('#tab-estoque .fa-plus').click();
+  await page.locator('#tab-estoque').getByRole('button', { name: 'Novo produto' }).click();
   await page.fill('#prod-nome', nome);
   await page.fill('#prod-custo', String(custo));
   await page.fill('#prod-venda', String(venda));
@@ -72,7 +88,7 @@ export async function cadastrarProduto(page, { nome, custo = 10, venda = 25, qtd
 
 export async function cadastrarCliente(page, { nome, placa = 'ABC1D23', moto = 'CG 160' }) {
   await irPara(page, 'Clientes');
-  await botaoDaAba(page, 'clientes', /NOVO CLIENTE/).click();
+  await botaoDaAba(page, 'clientes', /Novo cliente/i).click();
   await page.fill('#cli-nome', nome);
   await page.fill('#cli-placa', placa);
   await page.fill('#cli-moto', moto);

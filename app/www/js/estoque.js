@@ -22,24 +22,24 @@ export function renderEstoque() {
         .map((p) => {
           const alerta = p.qtd <= p.min;
           return `
-        <div class="card flex items-center justify-between ${alerta ? 'border-l-4 border-l-red-500' : ''}">
-          <div class="flex-1" onclick="App.editarProduto('${esc(p.id)}')">
+        <div class="card inventory-card ${alerta ? 'border-l-4 border-l-red-500' : ''}">
+          <button class="min-w-0 text-left" onclick="App.editarProduto('${esc(p.id)}')" aria-label="Editar ${esc(p.nome)}">
             <p class="font-bold">${esc(p.nome)} ${p.marca ? `<span class="text-xs text-slate-400">(${esc(p.marca)})</span>` : ''}</p>
-            <p class="text-sm text-gear-orange">Venda: ${moeda(p.venda)} | Custo: ${moeda(p.custo)}</p>
-            ${p.codigoBarras ? `<p class="text-[10px] text-slate-500"><i class="fas fa-barcode mr-1"></i>${esc(p.codigoBarras)}</p>` : ''}
-          </div>
-          <div class="flex items-center gap-2">
-            <button onclick="App.removeEstoqueRapido('${esc(p.id)}')" class="h-8 w-8 rounded-full bg-red-500 font-bold text-white active:scale-95">-</button>
-            <div class="min-w-[60px] rounded-xl border border-gear-700 bg-gear-900 px-4 py-2 text-center">
+            <p class="mt-1 text-sm text-gear-orange">Venda: ${moeda(p.venda)} <span class="text-slate-500">· Custo: ${moeda(p.custo)}</span></p>
+            ${p.codigoBarras ? `<p class="mt-1 break-all text-[11px] text-slate-500"><i data-lucide="scan-barcode" class="mr-1" aria-hidden="true"></i>${esc(p.codigoBarras)}</p>` : ''}
+          </button>
+          <div class="stock-controls">
+            <button onclick="App.removeEstoqueRapido('${esc(p.id)}')" class="btn-icon !h-11 !w-11 !border-red-500/30 !text-red-400" aria-label="Remover uma unidade de ${esc(p.nome)}"><i data-lucide="minus" aria-hidden="true"></i></button>
+            <div class="stock-value">
               <p class="text-2xl font-bold ${alerta ? 'text-red-500' : ''}">${p.qtd}</p>
-              <p class="text-[10px] text-slate-400">ESTOQUE</p>
+              <p class="text-[10px] uppercase tracking-wide text-slate-400">Estoque</p>
             </div>
-            <button onclick="App.addEstoqueRapido('${esc(p.id)}')" class="h-8 w-8 rounded-full bg-green-500 font-bold text-white active:scale-95">+</button>
+            <button onclick="App.addEstoqueRapido('${esc(p.id)}')" class="btn-icon !h-11 !w-11 !border-green-500/30 !text-green-400" aria-label="Adicionar uma unidade de ${esc(p.nome)}"><i data-lucide="plus" aria-hidden="true"></i></button>
           </div>
         </div>`;
         })
         .join('')
-    : '<p class="p-4 text-center text-slate-500">Nenhuma peça cadastrada.</p>';
+    : '<p class="empty-state">Nenhuma peça cadastrada.</p>';
 }
 
 export function renderAlertas() {
@@ -48,10 +48,10 @@ export function renderAlertas() {
     ? baixos
         .map(
           (p) =>
-            `<div class="flex justify-between rounded-lg bg-red-500 p-2 text-sm text-white"><span class="font-bold">${esc(p.nome)}</span><span>Restam: ${p.qtd}</span></div>`
+            `<div class="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-950/30 p-3 text-sm text-red-100"><span class="font-semibold">${esc(p.nome)}</span><span class="shrink-0">Restam: ${p.qtd}</span></div>`
         )
         .join('')
-    : '<p class="text-sm text-slate-500">Nenhum alerta de estoque baixo.</p>';
+    : '<p class="empty-state">Nenhum alerta de estoque baixo.</p>';
 }
 
 /* --------------------------------- CRUD ----------------------------------- */

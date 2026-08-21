@@ -67,21 +67,57 @@ export function pararCarregando() {
 }
 
 export function abrirModal(id) {
-  el(id)?.classList.add('active');
+  const node = el(id);
+  if (!node) return;
+  node.classList.add('active');
+  node.setAttribute('role', 'dialog');
+  node.setAttribute('aria-modal', 'true');
+  node.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('overflow-hidden');
+
+  requestAnimationFrame(() => {
+    const foco = node.querySelector('.modal-header button, input:not([type="hidden"]), select, textarea, button');
+    foco?.focus({ preventScroll: true });
+  });
 }
 
 export function fecharModal(id) {
-  el(id)?.classList.remove('active');
+  const node = el(id);
+  if (!node) return;
+  node.classList.remove('active');
+  node.setAttribute('aria-hidden', 'true');
+  if (!document.querySelector('.modal.active')) document.body.classList.remove('overflow-hidden');
 }
 
-/* -------------------------------- drawer --------------------------------- */
-
-export function abrirDrawer() {
-  el('drawer-overlay')?.classList.add('active');
+export function atualizarIcones() {
+  if (!window.lucide) return;
+  window.lucide.createIcons({ attrs: { 'stroke-width': 1.8 } });
 }
 
-export function fecharDrawer() {
-  el('drawer-overlay')?.classList.remove('active');
+let menuAberto = false;
+
+export function abrirMenu() {
+  menuAberto = true;
+  el('menu-lateral')?.classList.add('active');
+  el('menu-overlay')?.classList.add('active');
+  el('menu-lateral')?.setAttribute('aria-hidden', 'false');
+  document.querySelector('.profile-trigger')?.setAttribute('aria-expanded', 'true');
+  document.body.classList.add('overflow-hidden');
+}
+
+export function fecharMenu() {
+  if (!menuAberto) return;
+  menuAberto = false;
+  el('menu-lateral')?.classList.remove('active');
+  el('menu-overlay')?.classList.remove('active');
+  el('menu-lateral')?.setAttribute('aria-hidden', 'true');
+  document.querySelector('.profile-trigger')?.setAttribute('aria-expanded', 'false');
+  document.body.classList.remove('overflow-hidden');
+}
+
+export function navegarMenu(tabId) {
+  switchTab(tabId);
+  fecharMenu();
 }
 
 /* ------------------------------- navegação -------------------------------- */
@@ -100,14 +136,29 @@ export function renderTab(tab) {
 /** Redesenha todas as abas — usado depois de qualquer alteração de dados. */
 export function renderAll() {
   for (const render of Object.values(renderers)) render();
+  atualizarIcones();
 }
 
 export function switchTab(tabId, elemento) {
   document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
   el('tab-' + tabId)?.classList.add('active');
-  document.querySelectorAll('.nav-item').forEach((c) => c.classList.remove('active'));
+  document.querySelectorAll('[data-tab-link]').forEach((c) => c.classList.toggle('active', c.dataset.tabLink === tabId));
   elemento?.classList.add('active');
+  const titulos = {
+    inicio: 'Visão geral',
+    operacoes: 'Operações',
+    estoque: 'Produtos e estoque',
+    servicos: 'Serviços',
+    caixa: 'Caixa',
+    clientes: 'Clientes',
+    fornecedores: 'Fornecedores',
+    analises: 'Análises'
+  };
+  const titulo = el('titulo-pagina');
+  if (titulo) titulo.textContent = titulos[tabId] || 'Moto Gear';
+  window.scrollTo({ top: 0, behavior: 'auto' });
   renderTab(tabId);
+  atualizarIcones();
 }
 
 /** Marca a sub-aba clicada como ativa dentro de um container. */
@@ -115,3 +166,22 @@ export function marcarSubTab(containerSelector, elemento) {
   document.querySelectorAll(`${containerSelector} .sub-tab`).forEach((c) => c.classList.remove('active'));
   elemento?.classList.add('active');
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  atualizarIcones();
+
+  const observer = new MutationObserver((mutations) => {
+    const temIconeNovo = mutations.some((mutation) =>
+      [...mutation.addedNodes].some((node) =>
+        node.nodeType === Node.ELEMENT_NODE
+        && (node.matches?.('i[data-lucide]') || node.querySelector?.('i[data-lucide]'))
+      )
+    );
+    if (temIconeNovo) atualizarIcones();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') fecharMenu();
+  });
+});

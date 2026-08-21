@@ -578,11 +578,30 @@ test('entrada por nota soma no estoque, cria peça nova e lança uma despesa só
   assert.ok(fornecedores.some((f) => f.nome === 'Distribuidora Moto Peças'));
 });
 
-test('leitura por IA responde 503 quando o servidor não tem chave configurada', async () => {
+test('leitura por IA responde 503 quando nenhum provedor está configurado', async () => {
   delete process.env.GEMINI_API_KEY;
+  delete process.env.CLOUDFLARE_ACCOUNT_ID;
+  delete process.env.CLOUDFLARE_API_TOKEN;
   const { status, corpo } = await api('POST', '/nota-fiscal/ler', { imagemBase64: 'abc' });
   assert.equal(status, 503);
-  assert.match(corpo.erro, /GEMINI_API_KEY/);
+  assert.match(corpo.erro, /ainda não está configurada/);
+});
+
+test('ajudante oferece ajuda local mesmo antes de configurar provedores externos', async () => {
+  delete process.env.GROQ_API_KEY;
+  delete process.env.CLOUDFLARE_ACCOUNT_ID;
+  delete process.env.CLOUDFLARE_API_TOKEN;
+  const { status, corpo } = await api('POST', '/assistente/conversar', { mensagem: 'Como faço uma venda no Pix?', tela: 'tab-caixa' });
+  assert.equal(status, 200);
+  assert.match(corpo.resposta, /Caixa/);
+  assert.equal(corpo._ia.provedor, 'ajuda-local');
+});
+
+test('transcrição de voz avisa quando o Groq ainda não foi configurado', async () => {
+  delete process.env.GROQ_API_KEY;
+  const { status, corpo } = await api('POST', '/assistente/transcrever', { audioBase64: 'YWJj' });
+  assert.equal(status, 503);
+  assert.match(corpo.erro, /transcrição por voz/);
 });
 
 /* --------------------------- backup e importação --------------------------- */

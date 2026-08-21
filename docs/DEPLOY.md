@@ -8,11 +8,17 @@ e cria o serviço e o banco sozinho.
 1. Entre em [dashboard.render.com](https://dashboard.render.com) → **New** →
    **Blueprint**.
 2. Aponte para este repositório e confirme.
-3. O Render vai pedir dois valores:
+3. O Render vai pedir os valores abaixo:
    - **`ADMIN_SENHA`** — a senha que você vai usar para entrar no app.
    - **`GEMINI_API_KEY`** — a chave do [Google AI Studio](https://aistudio.google.com/apikey),
-     para ler nota fiscal por foto. Pode deixar em branco: o resto do app
-     funciona igual, só a leitura da nota fica indisponível.
+     usada como leitura principal de nota fiscal.
+   - **`GROQ_API_KEY`** — chave do Groq para o ajudante e os comandos por voz.
+   - **`CLOUDFLARE_ACCOUNT_ID`** e **`CLOUDFLARE_API_TOKEN`** — conta e token
+     do Workers AI usados como fallback do Gemini e do ajudante.
+
+As três integrações são opcionais e independentes. Sem Groq, o ajudante ainda
+responde dúvidas comuns usando o manual local; sem Cloudflare, a leitura continua
+no Gemini, mas não terá fallback externo.
 4. Ao terminar, anote a URL (algo como `https://moto-gear.onrender.com`).
 
 `JWT_SECRET` e a conexão do banco o Render preenche sozinho.

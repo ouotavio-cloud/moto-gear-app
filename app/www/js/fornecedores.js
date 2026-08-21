@@ -18,14 +18,14 @@ export function renderFornecedores() {
         <div class="card" onclick="App.editarFornecedor('${esc(f.id)}')">
           <p class="text-lg font-bold">${esc(f.nome)}</p>
           <p class="text-sm text-slate-400">
-            ${f.cnpj ? `<i class="fas fa-id-card"></i> ${esc(f.cnpj)}` : ''}
-            ${f.tel ? `| <i class="fab fa-whatsapp"></i> ${esc(f.tel)}` : ''}
+            ${f.cnpj ? `<i data-lucide="contact"></i> ${esc(f.cnpj)}` : ''}
+            ${f.tel ? `| <i data-lucide="message-circle"></i> ${esc(f.tel)}` : ''}
           </p>
           ${f.vendedor ? `<p class="mt-1 text-xs text-gear-orange">Vendedor: ${esc(f.vendedor)}</p>` : ''}
         </div>`
         )
         .join('')
-    : '<p class="p-4 text-center text-slate-500">Nenhum fornecedor cadastrado.</p>';
+    : '<p class="empty-state">Nenhum fornecedor cadastrado.</p>';
 }
 
 export function abrirModalFornecedor() {

@@ -32,24 +32,24 @@ export function renderClientes() {
           const devido = totalDevido(c.id);
 
           const badgeOS = abertas
-            ? `<span class="badge ml-2 inline-flex items-center gap-1"><i class="fas fa-thumbtack"></i> ${abertas} OS aberta(s)</span>`
+            ? `<span class="badge ml-2 inline-flex items-center gap-1"><i data-lucide="pin"></i> ${abertas} OS aberta(s)</span>`
             : '';
           const badgePendencia = pendencias.length
-            ? `<span class="badge badge-red mt-2 inline-flex items-center gap-1"><i class="fas fa-exclamation-circle"></i> ${pendencias.length} pendência(s) — deve ${moeda(devido)}</span>`
+            ? `<span class="badge badge-red mt-2 inline-flex items-center gap-1"><i data-lucide="circle-alert"></i> ${pendencias.length} pendência(s) — deve ${moeda(devido)}</span>`
             : '';
 
           return `
         <div class="card ${pendencias.length ? 'border-2 border-red-500 bg-red-900/20' : ''}" onclick="App.abrirPerfilCliente('${esc(c.id)}')">
           <div class="mb-1 flex flex-wrap items-center"><p class="text-lg font-bold">${esc(c.nome)}</p>${badgeOS}</div>
           <p class="text-sm text-slate-400">
-            <i class="fas fa-motorcycle"></i> ${esc(c.moto || 'Moto não informada')}
+            <i data-lucide="bike"></i> ${esc(c.moto || 'Moto não informada')}
             ${c.placa ? `<span class="font-bold text-gear-orange">${esc(c.placa)}</span>` : ''}
           </p>
           ${badgePendencia}
         </div>`;
         })
         .join('')
-    : '<p class="p-4 text-center text-slate-500">Nenhum cliente cadastrado.</p>';
+    : '<p class="empty-state">Nenhum cliente cadastrado.</p>';
 }
 
 /* --------------------------------- CRUD ----------------------------------- */
@@ -153,7 +153,7 @@ function desenharPerfil() {
         </div>`;
           })
           .join('')
-      : '<p class="text-slate-500">Nenhuma O.S.</p>';
+      : '<p class="empty-state">Nenhuma O.S.</p>';
     return;
   }
 
@@ -169,7 +169,7 @@ function desenharPerfil() {
         </div>`
           )
           .join('')
-      : '<p class="text-slate-500">Nenhum orçamento.</p>';
+      : '<p class="empty-state">Nenhum orçamento.</p>';
     return;
   }
 
@@ -183,14 +183,14 @@ function desenharPerfil() {
             <p class="font-bold">OS #${curto(o.id)}</p>
             <p class="font-bold text-red-500">Deve ${moeda(o.valorTotal - (o.valorPago ?? 0))}</p>
           </div>
-          <div class="mt-2 flex gap-2">
-            <button onclick="App.quitarPendencia('${esc(o.id)}')" class="btn-primary !bg-green-600 !bg-none !p-2 !text-sm">Registrar pagamento</button>
-            ${maquininhaDisponivel() ? `<button onclick="App.cobrarPendenciaCartao('${esc(o.id)}')" class="btn-primary !bg-amber-600 !bg-none !p-2 !text-sm"><i class="fas fa-credit-card"></i> Cartao</button>` : ''}
+          <div class="action-grid mt-3">
+            <button onclick="App.quitarPendencia('${esc(o.id)}')" class="btn-success btn-compact">Registrar pagamento</button>
+            ${maquininhaDisponivel() ? `<button onclick="App.cobrarPendenciaCartao('${esc(o.id)}')" class="btn-secondary btn-compact"><i data-lucide="credit-card" aria-hidden="true"></i> Cartão</button>` : ''}
           </div>
         </div>`
         )
         .join('')
-    : '<p class="text-slate-500">Nenhuma pendência.</p>';
+    : '<p class="empty-state">Nenhuma pendência.</p>';
 }
 
 export async function quitarPendencia(osId) {

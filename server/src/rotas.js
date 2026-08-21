@@ -15,7 +15,8 @@ import {
 } from './auth.js';
 import * as negocio from './negocio.js';
 import * as cadastros from './cadastros.js';
-import { lerNotaFiscal, iaDisponivel } from './ia.js';
+import { lerNotaFiscal, statusIA } from './ia.js';
+import { conversar, transcrever } from './assistente.js';
 
 /** Encaminha erro de handler assíncrono para o middleware de erro do Express. */
 const rota = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -23,7 +24,7 @@ const rota = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
 export function criarRotas() {
   const api = Router();
 
-  api.get('/saude', (_req, res) => res.json({ ok: true, ia: iaDisponivel() }));
+  api.get('/saude', (_req, res) => res.json({ ok: true, ia: statusIA() }));
 
   api.post(
     '/auth/login',
@@ -217,6 +218,18 @@ export function criarRotas() {
   api.post(
     '/nota-fiscal/entrada',
     rota(async (req, res) => res.status(201).json(await negocio.entradaPorNota(req.body ?? {}, req.usuario.organizacaoId)))
+  );
+
+  /* ------------------------------- ajudante ------------------------------- */
+
+  api.post(
+    '/assistente/conversar',
+    rota(async (req, res) => res.json(await conversar(req.body ?? {})))
+  );
+
+  api.post(
+    '/assistente/transcrever',
+    rota(async (req, res) => res.json(await transcrever(req.body ?? {})))
   );
 
   /* --------------------------- backup e planilha --------------------------- */

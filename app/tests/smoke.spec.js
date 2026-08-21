@@ -8,6 +8,7 @@ import {
   botaoDaAba,
   estado,
   coletarErros,
+  abrirConfig,
   USUARIO,
   SENHA
 } from './helpers.js';
@@ -87,12 +88,11 @@ test('cadastro com senhas diferentes mostra erro e não envia nada', async ({ pa
 
 test('cadastro por código de convite entra na oficina do chefe', async ({ page, baseURL, browser }) => {
   await abrirLogado(page, baseURL, token);
-  await page.locator('#btn-abrir-drawer').click();
-  await page.locator('.drawer-item', { hasText: 'Configurações' }).click();
+  await abrirConfig(page);
   const codigoLocator = page.locator('#cfg-codigo-convite');
   await expect(codigoLocator).toContainText(/\w/); // espera o fetch assíncrono preencher o código
   const codigo = (await codigoLocator.textContent()).trim();
-  await page.locator('#modal-config .fa-times').click();
+  await page.locator('#modal-config').getByRole('button', { name: 'Fechar configurações' }).click();
 
   // Contexto isolado: simula um segundo aparelho, sem herdar a sessão do chefe.
   const contexto2 = await browser.newContext();
@@ -134,12 +134,18 @@ test('código de convite inválido mostra erro e não entra', async ({ page, bas
 test('navega por todas as abas sem erro', async ({ page, baseURL }) => {
   const erros = await abrirLogado(page, baseURL, token);
 
+  await expect(page.locator('.bottom-nav .nav-item')).toHaveCount(4);
+  await irPara(page, 'Operações');
+  await expect(page.locator('#tab-operacoes')).toContainText('Produtos e estoque');
+  await expect(page.locator('#tab-operacoes')).toContainText('Serviços');
+  await expect(page.locator('#tab-operacoes')).toContainText('Fornecedores');
+
   for (const [rotulo, id] of [
     ['Estoque', 'tab-estoque'],
     ['Serviços', 'tab-servicos'],
     ['Caixa', 'tab-caixa'],
     ['Clientes', 'tab-clientes'],
-    ['Fornecedores', 'tab-fornecedores'],
+    ['Fornec.', 'tab-fornecedores'],
     ['Análises', 'tab-analises'],
     ['Início', 'tab-inicio']
   ]) {
@@ -147,6 +153,31 @@ test('navega por todas as abas sem erro', async ({ page, baseURL }) => {
     await expect(page.locator(`#${id}`)).toHaveClass(/active/);
   }
   expect(erros).toEqual([]);
+});
+
+test('ajudante prepara serviço como rascunho e abre formulário para confirmação', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  await page.route('**/api/assistente/conversar', (rota) => rota.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      resposta: 'Preparei o serviço. Confira antes de salvar.',
+      sugestoes: [],
+      rascunho: { tipo: 'servico', dados: { nome: 'Troca de óleo Motul', valor: 45 } },
+      _ia: { provedor: 'groq' }
+    })
+  }));
+
+  await page.getByRole('button', { name: 'Abrir ajudante Moto Gear' }).click();
+  await expect(page.locator('#modal-assistente')).toHaveClass(/active/);
+  await page.fill('#assistente-input', 'Cadastre troca de óleo Motul por 45 reais');
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click();
+  await expect(page.locator('#assistente-rascunho')).toContainText('Troca de óleo Motul');
+  await page.getByRole('button', { name: /Revisar no formulário/ }).click();
+
+  await expect(page.locator('#modal-servico')).toHaveClass(/active/);
+  await expect(page.locator('#serv-nome')).toHaveValue('Troca de óleo Motul');
+  await expect(page.locator('#serv-valor')).toHaveValue('45');
 });
 
 /* --------------------------------- estoque --------------------------------- */
@@ -171,10 +202,10 @@ test('os botões +/- ajustam o estoque na hora', async ({ page, baseURL }) => {
   await abrirLogado(page, baseURL, token);
   await cadastrarProduto(page, { nome: 'Vela', custo: 10, venda: 25, qtd: 3 });
 
-  await page.locator('#lista-estoque button', { hasText: '+' }).first().click();
+  await page.getByRole('button', { name: 'Adicionar uma unidade de Vela' }).click();
   await expect(page.locator('#lista-estoque')).toContainText('4');
 
-  await page.locator('#lista-estoque button', { hasText: '-' }).first().click();
+  await page.getByRole('button', { name: 'Remover uma unidade de Vela' }).click();
   await expect(page.locator('#lista-estoque')).toContainText('3');
 
   const { produtos } = await estado(page);
@@ -205,11 +236,11 @@ test('venda de balcão baixa o estoque e credita o caixa', async ({ page, baseUR
   await cadastrarProduto(page, { nome: 'Filtro de óleo', custo: 12, venda: 30, qtd: 8 });
 
   await irPara(page, 'Caixa');
-  await botaoDaAba(page, 'caixa', /VENDER/).click();
+  await botaoDaAba(page, 'caixa', /Nova venda/i).click();
   await page.fill('#venda-add-qtd', '3');
-  await page.locator('#modal-venda button', { hasText: 'ADD' }).click();
+  await page.locator('#modal-venda button', { hasText: 'Adicionar' }).click();
   await expect(page.locator('#lista-itens-venda')).toContainText('Filtro de óleo');
-  await page.locator('#modal-venda').getByRole('button', { name: 'Vender' }).click();
+  await page.locator('#modal-venda').getByRole('button', { name: 'Dinheiro' }).click();
   await expect(page.locator('#modal-venda')).not.toHaveClass(/active/);
 
   // 8 unidades a 12 de custo saíram como despesa; a venda soma 90 de entrada.
@@ -224,10 +255,10 @@ test('venda acima do estoque é recusada pelo servidor', async ({ page, baseURL 
   await cadastrarProduto(page, { nome: 'Corrente', custo: 50, venda: 120, qtd: 2 });
 
   await irPara(page, 'Caixa');
-  await botaoDaAba(page, 'caixa', /VENDER/).click();
+  await botaoDaAba(page, 'caixa', /Nova venda/i).click();
   await page.fill('#venda-add-qtd', '5');
-  await page.locator('#modal-venda button', { hasText: 'ADD' }).click();
-  await page.locator('#modal-venda').getByRole('button', { name: 'Vender' }).click();
+  await page.locator('#modal-venda button', { hasText: 'Adicionar' }).click();
+  await page.locator('#modal-venda').getByRole('button', { name: 'Dinheiro' }).click();
 
   await expect(page.locator('#toast')).toContainText('Estoque insuficiente');
 
@@ -240,21 +271,20 @@ test('venda por Pix gera QR e copia-e-cola no valor, e ao confirmar baixa estoqu
   await cadastrarProduto(page, { nome: 'Pastilha', custo: 10, venda: 25, qtd: 5 });
 
   // Chefe cadastra a chave Pix.
-  await page.locator('#btn-abrir-drawer').click();
-  await page.locator('.drawer-item', { hasText: 'Configurações' }).click();
+  await abrirConfig(page);
   await expect(page.locator('#cfg-pix-wrap')).toBeVisible();
   await page.fill('#cfg-pix-chave', 'oficina@pix.com');
   await page.fill('#cfg-pix-nome', 'Moto Gear');
   await page.fill('#cfg-pix-cidade', 'Sao Paulo');
   await page.locator('#cfg-pix-wrap').getByRole('button', { name: /Salvar chave Pix/ }).click();
   await expect(page.locator('#toast')).toContainText('Pix salva');
-  await page.locator('#modal-config .fa-times').click();
+  await page.locator('#modal-config').getByRole('button', { name: 'Fechar configurações' }).click();
 
   // Venda de 2x25 = 50 cobrada no Pix.
   await irPara(page, 'Caixa');
-  await botaoDaAba(page, 'caixa', /VENDER/).click();
+  await botaoDaAba(page, 'caixa', /Nova venda/i).click();
   await page.fill('#venda-add-qtd', '2');
-  await page.locator('#modal-venda button', { hasText: 'ADD' }).click();
+  await page.locator('#modal-venda button', { hasText: 'Adicionar' }).click();
   await expect(page.locator('#lista-itens-venda')).toContainText('Pastilha');
 
   const btnPix = page.locator('#btn-venda-pix');
@@ -282,6 +312,44 @@ test('venda por Pix gera QR e copia-e-cola no valor, e ao confirmar baixa estoqu
   expect(produtos.find((p) => p.nome === 'Pastilha').qtd).toBe(3);
 });
 
+test('ações da venda, incluindo PIX, cabem sem rolagem horizontal em qualquer largura', async ({ page, baseURL, request }) => {
+  await request.post(`${baseURL}/api/auth/organizacao/pix`, {
+    data: { chave: 'oficina@pix.com', nome: 'Moto Gear', cidade: 'Sao Paulo' },
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  await page.setViewportSize({ width: 320, height: 700 });
+  await abrirLogado(page, baseURL, token);
+  await irPara(page, 'Caixa');
+
+  for (const width of [320, 360, 390, 768]) {
+    await page.setViewportSize({ width, height: 844 });
+    if (await page.locator('#modal-venda').evaluate((node) => node.classList.contains('active'))) {
+      await page.locator('#modal-venda').getByRole('button', { name: 'Fechar venda' }).click();
+    }
+
+    await botaoDaAba(page, 'caixa', /Nova venda/i).click();
+    await expect(page.locator('#btn-venda-pix')).toBeVisible();
+
+    const layout = await page.locator('#modal-venda').evaluate((modal) => {
+      const pix = modal.querySelector('#btn-venda-pix').getBoundingClientRect();
+      const content = modal.querySelector('.modal-content');
+      return {
+        viewport: window.innerWidth,
+        documentOverflow: document.documentElement.scrollWidth - window.innerWidth,
+        modalOverflow: content.scrollWidth - content.clientWidth,
+        pixLeft: pix.left,
+        pixRight: pix.right
+      };
+    });
+
+    expect(layout.documentOverflow, `documento em ${width}px`).toBeLessThanOrEqual(0);
+    expect(layout.modalOverflow, `modal em ${width}px`).toBeLessThanOrEqual(0);
+    expect(layout.pixLeft, `PIX começa fora em ${width}px`).toBeGreaterThanOrEqual(0);
+    expect(layout.pixRight, `PIX termina fora em ${width}px`).toBeLessThanOrEqual(layout.viewport);
+  }
+});
+
 test('sem chave Pix cadastrada, o botão Pix não aparece na venda', async ({ page, baseURL, request }) => {
   // A chave Pix mora na organização e sobrevive ao reset de dados, então zera
   // aqui pra não herdar a chave de um teste anterior.
@@ -294,9 +362,9 @@ test('sem chave Pix cadastrada, o botão Pix não aparece na venda', async ({ pa
   await cadastrarProduto(page, { nome: 'Vela', custo: 5, venda: 15, qtd: 4 });
 
   await irPara(page, 'Caixa');
-  await botaoDaAba(page, 'caixa', /VENDER/).click();
+  await botaoDaAba(page, 'caixa', /Nova venda/i).click();
   await page.fill('#venda-add-qtd', '1');
-  await page.locator('#modal-venda button', { hasText: 'ADD' }).click();
+  await page.locator('#modal-venda button', { hasText: 'Adicionar' }).click();
 
   await expect(page.locator('#btn-venda-pix')).toBeHidden();
 });
@@ -304,7 +372,7 @@ test('sem chave Pix cadastrada, o botão Pix não aparece na venda', async ({ pa
 test('despesa manual entra como saída', async ({ page, baseURL }) => {
   await abrirLogado(page, baseURL, token);
   await irPara(page, 'Caixa');
-  await botaoDaAba(page, 'caixa', /DESPESA/).click();
+  await botaoDaAba(page, 'caixa', /Nova despesa/i).click();
   await page.fill('#despesa-desc', 'Aluguel');
   await page.fill('#despesa-valor', '1500');
   await page.locator('#modal-despesa').getByRole('button', { name: 'Lançar' }).click();
@@ -337,7 +405,7 @@ test('ciclo completo da OS: criar, andamento debita estoque, concluir gera pend�
 
   // Nova OS com a bateria
   await page.locator('#perfil-cliente').getByRole('button', { name: /Nova OS/ }).click();
-  await page.locator('#modal-os button', { hasText: 'ADD' }).click();
+  await page.locator('#modal-os button', { hasText: 'Adicionar' }).click();
   await expect(page.locator('#lista-itens-os')).toContainText('Bateria');
   await page.locator('#btn-salvar-os').click();
   await expect(page.locator('#modal-os')).not.toHaveClass(/active/);
@@ -411,7 +479,7 @@ test('orçamento aprovado vira OS pendente', async ({ page, baseURL }) => {
 
   await page.locator('#lista-clientes .card').first().click();
   await page.locator('#perfil-cliente').getByRole('button', { name: 'Orçamento' }).click();
-  await page.locator('#modal-os button', { hasText: 'ADD' }).click();
+  await page.locator('#modal-os button', { hasText: 'Adicionar' }).click();
   await page.locator('#btn-salvar-os').click();
   await expect(page.locator('#modal-os')).not.toHaveClass(/active/);
 
@@ -434,9 +502,9 @@ test('central de OS lista as ordens ativas de todos os clientes', async ({ page,
 
   await page.locator('#lista-clientes .card').first().click();
   await page.locator('#perfil-cliente').getByRole('button', { name: /Nova OS/ }).click();
-  await page.locator('#modal-os button', { hasText: 'ADD' }).click();
+  await page.locator('#modal-os button', { hasText: 'Adicionar' }).click();
   await page.locator('#btn-salvar-os').click();
-  await page.locator('#perfil-cliente .fa-arrow-left').click();
+  await page.locator('#perfil-cliente').getByRole('button', { name: 'Voltar' }).click();
 
   await botaoDaAba(page, 'clientes', /Central de OS/).click();
   await expect(page.locator('#lista-central-os')).toContainText('Cliente Central');
@@ -450,10 +518,10 @@ test('análises somam receitas, despesas e ranking de vendas', async ({ page, ba
   await cadastrarProduto(page, { nome: 'Óleo 20W50', custo: 15, venda: 35, qtd: 10 });
 
   await irPara(page, 'Caixa');
-  await botaoDaAba(page, 'caixa', /VENDER/).click();
+  await botaoDaAba(page, 'caixa', /Nova venda/i).click();
   await page.fill('#venda-add-qtd', '2');
-  await page.locator('#modal-venda button', { hasText: 'ADD' }).click();
-  await page.locator('#modal-venda').getByRole('button', { name: 'Vender' }).click();
+  await page.locator('#modal-venda button', { hasText: 'Adicionar' }).click();
+  await page.locator('#modal-venda').getByRole('button', { name: 'Dinheiro' }).click();
   await expect(page.locator('#modal-venda')).not.toHaveClass(/active/);
 
   await irPara(page, 'Análises');
@@ -489,8 +557,7 @@ test('conferência da nota fiscal lança estoque e despesa', async ({ page, base
     })
   );
 
-  await page.locator('#btn-abrir-drawer').click();
-  await page.locator('.drawer-item', { hasText: 'Ler nota fiscal' }).click();
+  await page.locator('header').getByRole('button', { name: 'Ler nota fiscal' }).click();
   await page.setInputFiles('#nota-upload', {
     name: 'nota.jpg',
     mimeType: 'image/jpeg',
@@ -522,8 +589,8 @@ test('conferência da nota fiscal lança estoque e despesa', async ({ page, base
 
 test('cadastro de fornecedor aparece na lista', async ({ page, baseURL }) => {
   await abrirLogado(page, baseURL, token);
-  await irPara(page, 'Fornecedores');
-  await page.locator('#tab-fornecedores .fa-plus').click();
+  await irPara(page, 'Fornec.');
+  await page.locator('#tab-fornecedores').getByRole('button', { name: 'Novo fornecedor' }).click();
   await page.fill('#forn-nome', 'Auto Peças Central');
   await page.fill('#forn-cnpj', '12.345.678/0001-90');
   await page.locator('#modal-fornecedor').getByRole('button', { name: 'Salvar' }).click();
@@ -533,8 +600,7 @@ test('cadastro de fornecedor aparece na lista', async ({ page, baseURL }) => {
 
 test('configurações mostra a lista de usuários da oficina', async ({ page, baseURL }) => {
   await abrirLogado(page, baseURL, token);
-  await page.locator('#btn-abrir-drawer').click();
-  await page.locator('.drawer-item', { hasText: 'Configurações' }).click();
+  await abrirConfig(page);
 
   await expect(page.locator('#cfg-usuarios-lista')).toContainText(USUARIO);
 });
@@ -543,8 +609,8 @@ test('sair da conta volta para a tela de login', async ({ page, baseURL }) => {
   await abrirLogado(page, baseURL, token);
   page.on('dialog', (dialogo) => dialogo.accept());
 
-  await page.locator('#btn-abrir-drawer').click();
-  await page.locator('.drawer-item', { hasText: 'Sair da conta' }).click();
+  await abrirConfig(page);
+  await page.locator('#modal-config').getByRole('button', { name: /Sair da conta/ }).click();
 
   await expect(page.locator('#tela-login')).toHaveClass(/active/);
 });

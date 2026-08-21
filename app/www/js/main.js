@@ -4,7 +4,7 @@
  */
 
 import { carregarEstado, entrar, cadastrarOficina, cadastrarFuncionario, temSessao, servidor, quandoDeslogar } from './api.js';
-import { setRenderers, renderAll, switchTab, fecharModal, showToast, el, setVal, txt, carregando, pararCarregando, abrirDrawer, fecharDrawer } from './ui.js';
+import { setRenderers, renderAll, switchTab, fecharModal, showToast, el, setVal, txt, carregando, pararCarregando, abrirMenu, fecharMenu, navegarMenu, atualizarIcones } from './ui.js';
 import * as estoque from './estoque.js';
 import * as servicos from './servicos.js';
 import * as caixa from './caixa.js';
@@ -19,7 +19,9 @@ import * as notafiscal from './notafiscal.js';
 import * as configuracoes from './config.js';
 import * as plugpag from './plugpag.js';
 import * as pix from './pix.js';
+import { carregarConfigPix } from './pix.js';
 import * as atualizacao from './atualizacao.js';
+import * as assistente from './assistente.js';
 import { isNativo } from './files.js';
 import { renderDashboard } from './dashboard.js';
 
@@ -36,8 +38,8 @@ function atualizarModoLogin() {
   el('login-tipo-oficina').classList.toggle('active', tipoCadastro === 'oficina');
   el('login-tipo-funcionario').classList.toggle('active', tipoCadastro === 'funcionario');
   el('login-botao').innerHTML = modoCadastro
-    ? '<i class="fas fa-user-plus"></i> Criar conta'
-    : '<i class="fas fa-right-to-bracket"></i> Entrar';
+    ? '<i data-lucide="user-plus"></i> Criar conta'
+    : '<i data-lucide="log-in"></i> Entrar';
   el('login-troca-texto').textContent = modoCadastro ? 'Já tem conta?' : 'Ainda não tem conta?';
   el('login-troca-botao').textContent = modoCadastro ? 'Entrar' : 'Cadastre-se';
   el('login-erro').textContent = '';
@@ -92,6 +94,7 @@ async function fazerLogin() {
     await carregarEstado();
     esconderLogin();
     renderAll();
+    carregarConfigPix();
     showToast('Bem-vindo!');
   } catch (err) {
     el('login-erro').textContent = err.message;
@@ -134,6 +137,7 @@ async function fazerCadastro() {
     await carregarEstado();
     esconderLogin();
     renderAll();
+    carregarConfigPix();
     showToast('Conta criada. Bem-vindo!');
   } catch (err) {
     el('login-erro').textContent = err.message;
@@ -147,8 +151,9 @@ async function fazerCadastro() {
 const App = {
   switchTab,
   fecharModal,
-  abrirDrawer,
-  fecharDrawer,
+  abrirMenu,
+  fecharMenu,
+  navegarMenu,
   fazerLogin,
   fazerCadastro,
   enviarFormLogin,
@@ -233,6 +238,15 @@ const App = {
   confirmarNota: notafiscal.confirmarNota,
   cancelarNota: notafiscal.cancelarNota,
 
+  // Ajudante contextual e comandos por voz
+  abrirAssistente: assistente.abrirAssistente,
+  fecharAssistente: assistente.fecharAssistente,
+  enviarMensagemIA: assistente.enviarMensagem,
+  enviarAssistenteComEnter: assistente.enviarComEnter,
+  usarSugestaoIA: assistente.usarSugestao,
+  alternarGravacaoIA: assistente.alternarGravacao,
+  aplicarRascunhoIA: assistente.aplicarRascunho,
+
   // Maquininha PlugPag
   ppDebito: () => plugpag.executarCobranca('debito', 1),
   ppCreditoVista: () => plugpag.executarCobranca('credito_vista', 1),
@@ -281,6 +295,7 @@ async function iniciar() {
       await carregarEstado();
       esconderLogin();
       renderAll();
+      carregarConfigPix();
     } catch (err) {
       console.error('Não consegui carregar o estado inicial', err);
       mostrarLogin();
@@ -291,6 +306,7 @@ async function iniciar() {
   }
 
   document.body.dataset.pronto = 'sim';
+  atualizarIcones();
 
   // Só o APK se atualiza por download; no navegador basta recarregar a página.
   if (isNativo()) atualizacao.verificarAtualizacao();
