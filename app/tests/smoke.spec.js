@@ -275,6 +275,8 @@ test('maquininha recebe valor, crédito e parcelamento antes de registrar a vend
     };
   });
   await abrirLogado(page, baseURL, token);
+  const avisoAtualizacao = page.locator('#banner-atualizacao');
+  if (await avisoAtualizacao.isVisible()) await avisoAtualizacao.getByRole('button', { name: 'Depois' }).click();
   await cadastrarProduto(page, { nome: 'Kit freio', custo: 20, venda: 67.89, qtd: 3 });
 
   await irPara(page, 'Caixa');
