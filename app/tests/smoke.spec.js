@@ -155,6 +155,31 @@ test('navega por todas as abas sem erro', async ({ page, baseURL }) => {
   expect(erros).toEqual([]);
 });
 
+test('ajudante prepara serviço como rascunho e abre formulário para confirmação', async ({ page, baseURL }) => {
+  await abrirLogado(page, baseURL, token);
+  await page.route('**/api/assistente/conversar', (rota) => rota.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      resposta: 'Preparei o serviço. Confira antes de salvar.',
+      sugestoes: [],
+      rascunho: { tipo: 'servico', dados: { nome: 'Troca de óleo Motul', valor: 45 } },
+      _ia: { provedor: 'groq' }
+    })
+  }));
+
+  await page.getByRole('button', { name: 'Abrir ajudante Moto Gear' }).click();
+  await expect(page.locator('#modal-assistente')).toHaveClass(/active/);
+  await page.fill('#assistente-input', 'Cadastre troca de óleo Motul por 45 reais');
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click();
+  await expect(page.locator('#assistente-rascunho')).toContainText('Troca de óleo Motul');
+  await page.getByRole('button', { name: /Revisar no formulário/ }).click();
+
+  await expect(page.locator('#modal-servico')).toHaveClass(/active/);
+  await expect(page.locator('#serv-nome')).toHaveValue('Troca de óleo Motul');
+  await expect(page.locator('#serv-valor')).toHaveValue('45');
+});
+
 /* --------------------------------- estoque --------------------------------- */
 
 test('cadastrar peça grava no servidor e lança a compra no caixa', async ({ page, baseURL }) => {

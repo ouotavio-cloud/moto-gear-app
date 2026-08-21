@@ -39,6 +39,14 @@ services:
       # Opcional: sem ela o app funciona, só a leitura da nota fica indisponível.
       - key: GEMINI_API_KEY
         sync: false
+      # Ajudante por texto e transcrição dos comandos de voz.
+      - key: GROQ_API_KEY
+        sync: false
+      # Fallback multimodal quando o Gemini atingir a cota ou ficar indisponível.
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
 
 databases:
   - name: moto-gear-db
