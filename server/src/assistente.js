@@ -139,10 +139,15 @@ function catalogoVenda(estado) {
       return total + (produto ? Number(produto.venda) * Number(peca.qtd || 1) : 0);
     }, 0);
     const vinculadas = Array.isArray(servico.pecas) ? servico.pecas : [];
-    const limite = vinculadas.length
-      ? Math.min(...vinculadas.map((peca) => {
-        const produto = estado.produtos.find((item) => item.id === peca.produtoId);
-        return produto ? Math.floor(Number(produto.qtd) / Math.max(1, Number(peca.qtd) || 1)) : 0;
+    const porProduto = vinculadas.reduce((soma, peca) => {
+      const produtoId = String(peca.produtoId ?? '');
+      if (produtoId) soma.set(produtoId, (soma.get(produtoId) || 0) + Math.max(1, Number(peca.qtd) || 1));
+      return soma;
+    }, new Map());
+    const limite = porProduto.size
+      ? Math.min(...[...porProduto].map(([produtoId, quantidade]) => {
+        const produto = estado.produtos.find((item) => item.id === produtoId);
+        return produto ? Math.floor(Number(produto.qtd) / quantidade) : 0;
       }))
       : null;
     return { tipo: 'servico', itemId: servico.id, nome: servico.nome, valor: Number(servico.valor) + pecas, estoque: limite };

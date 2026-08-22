@@ -666,7 +666,7 @@ test('ajudante verifica peças vinculadas antes de preparar venda de serviço', 
   const { corpo: servico } = await api('POST', '/servicos', {
     nome: 'Troca premium',
     valor: 40,
-    pecas: [{ produtoId: oleo.id, qtd: 2 }]
+    pecas: [{ produtoId: oleo.id, qtd: 1 }, { produtoId: oleo.id, qtd: 1 }]
   });
   const resposta = await api('POST', '/assistente/venda', { mensagem: 'Venda 1 troca premium' });
   assert.equal(resposta.status, 200);

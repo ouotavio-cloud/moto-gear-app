@@ -174,8 +174,7 @@ export function cotacaoVenda({ itens }, organizacaoId) {
     await validarEstoque(tx, baixas, organizacaoId);
     const cotacao = jwt.sign(
       { tipo: 'venda-cotacao', organizacaoId, total, itens: detalhados, baixas },
-      segredo(),
-      { expiresIn: '10m' }
+      segredo()
     );
     return { total, itens: detalhados, cotacao };
   });
