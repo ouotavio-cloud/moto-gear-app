@@ -11,6 +11,7 @@ let pedacosAudio = [];
 let fluxoAudio = null;
 let vendaEmPreparacao = null;
 let geracaoAssistente = 0;
+let geracaoVoz = 0;
 let sequenciaMensagens = 0;
 const mensagensFaladas = new Map();
 const CHAVE_RESPOSTAS_VOZ = 'motogear_respostas_voz';
@@ -24,6 +25,7 @@ export function respostasPorVozAtivas() {
 }
 
 export function pararRespostaFalando() {
+  geracaoVoz += 1;
   const nativo = plugin('MotoGearNative');
   nativo?.stopSpeaking?.().catch?.(() => {});
   globalThis.speechSynthesis?.cancel?.();
@@ -47,6 +49,7 @@ async function falarTexto(texto, { forcar = false } = {}) {
   const conteudo = String(texto ?? '').trim();
   if (!conteudo || (!forcar && !respostasPorVozAtivas())) return false;
   pararRespostaFalando();
+  const geracao = geracaoVoz;
 
   const nativo = plugin('MotoGearNative');
   if (nativo?.speak) {
@@ -58,6 +61,8 @@ async function falarTexto(texto, { forcar = false } = {}) {
     }
   }
 
+  if (geracao !== geracaoVoz) return false;
+  if (!forcar && (!respostasPorVozAtivas() || !podeFalarAutomaticamente())) return false;
   if (!globalThis.speechSynthesis || !globalThis.SpeechSynthesisUtterance) return false;
   try {
     const fala = new globalThis.SpeechSynthesisUtterance(conteudo);

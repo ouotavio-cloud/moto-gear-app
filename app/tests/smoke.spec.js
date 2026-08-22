@@ -203,7 +203,13 @@ test('ajudante fala respostas, permite ouvir novamente e respeita a configuraÃ§Ã
     await rota.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ resposta: 'Claro. Posso ajudar com sua oficina.', sugestoes: [], rascunho: null })
+      body: JSON.stringify({
+        resposta: requisicoes === 1
+          ? 'Claro. Posso ajudar com sua oficina.'
+          : requisicoes === 2 ? 'Esta resposta chegou atrasada.' : 'Agora estou respondendo sem voz.',
+        sugestoes: [],
+        rascunho: null
+      })
     });
   });
 
@@ -229,7 +235,7 @@ test('ajudante fala respostas, permite ouvir novamente e respeita a configuraÃ§Ã
   await page.getByRole('button', { name: 'Abrir ajudante Moto Gear' }).click();
   await page.fill('#assistente-input', 'E agora?');
   await page.getByRole('button', { name: 'Enviar mensagem' }).click();
-  await expect(page.locator('#assistente-mensagens')).toContainText('Claro. Posso ajudar com sua oficina.');
+  await expect(page.locator('#assistente-mensagens')).toContainText('Agora estou respondendo sem voz.');
   expect(await page.evaluate(() => globalThis.__falasMotoGear.length)).toBe(2);
 
   await page.getByRole('button', { name: 'Ouvir esta resposta' }).last().click();
