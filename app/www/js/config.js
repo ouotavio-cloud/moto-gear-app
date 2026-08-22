@@ -3,6 +3,7 @@
 import { req, servidor, setServidor, sair } from './api.js';
 import { el, esc, showToast, abrirModal, fecharModal, setVal, txt, num } from './ui.js';
 import { setConfigPix } from './pix.js';
+import { definirRespostasPorVoz, respostasPorVozAtivas } from './assistente.js';
 
 const CHAVE_MARGEM = 'motogear_margem';
 
@@ -20,9 +21,15 @@ export function abrirConfig() {
   setVal('cfg-margem', margemPadrao());
   setVal('cfg-senha-atual', '');
   setVal('cfg-senha-nova', '');
+  el('cfg-respostas-voz').checked = respostasPorVozAtivas();
   abrirModal('modal-config');
   renderOrganizacao();
   renderUsuarios();
+}
+
+export function alternarRespostasVoz(ativas) {
+  definirRespostasPorVoz(Boolean(ativas));
+  showToast(ativas ? 'Respostas por voz ativadas.' : 'Respostas por voz desativadas.');
 }
 
 async function renderOrganizacao() {
@@ -103,6 +110,7 @@ export function salvarPreferencias() {
   } catch (err) {
     console.error('Não consegui salvar a margem', err);
   }
+  definirRespostasPorVoz(el('cfg-respostas-voz').checked);
 
   const url = txt('cfg-servidor');
   if (url && url !== servidor()) {

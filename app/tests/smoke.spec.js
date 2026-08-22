@@ -181,6 +181,80 @@ test('ajudante prepara serviço como rascunho e abre formulário para confirmaç
   await expect(page.locator('#serv-valor')).toHaveValue('45');
 });
 
+test('ajudante fala respostas, permite ouvir novamente e respeita a configuração', async ({ page, baseURL }) => {
+  let requisicoes = 0;
+  await page.addInitScript(() => {
+    globalThis.__falasMotoGear = [];
+    globalThis.SpeechSynthesisUtterance = class {
+      constructor(text) { this.text = text; }
+    };
+    Object.defineProperty(globalThis, 'speechSynthesis', {
+      configurable: true,
+      value: {
+        cancel() {},
+        getVoices() { return [{ lang: 'pt-BR', name: 'Português Brasil' }]; },
+        speak(fala) { globalThis.__falasMotoGear.push(fala.text); }
+      }
+    });
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: () => new Promise((resolve) => { globalThis.__resolverMicrofone = resolve; })
+      }
+    });
+    globalThis.MediaRecorder = class {
+      static isTypeSupported() { return true; }
+    };
+  });
+  await page.route('**/api/assistente/conversar', async (rota) => {
+    requisicoes += 1;
+    if (requisicoes === 2) await new Promise((resolve) => setTimeout(resolve, 150));
+    await rota.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        resposta: requisicoes === 1
+          ? 'Claro. Posso ajudar com sua oficina.'
+          : requisicoes === 2 ? 'Esta resposta chegou atrasada.' : 'Agora estou respondendo sem voz.',
+        sugestoes: [],
+        rascunho: null
+      })
+    });
+  });
+
+  await abrirLogado(page, baseURL, token);
+  await page.getByRole('button', { name: 'Abrir ajudante Moto Gear' }).click();
+  await page.fill('#assistente-input', 'Pode me ajudar?');
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click();
+  await expect.poll(() => page.evaluate(() => globalThis.__falasMotoGear.length)).toBe(1);
+
+  await page.getByRole('button', { name: 'Ouvir esta resposta' }).last().click();
+  await expect.poll(() => page.evaluate(() => globalThis.__falasMotoGear.length)).toBe(2);
+
+  await page.fill('#assistente-input', 'Responda depois que eu fechar');
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click();
+  await page.getByRole('button', { name: 'Gravar mensagem de voz' }).click();
+  await page.getByRole('button', { name: 'Ouvir esta resposta' }).last().click();
+  expect(await page.evaluate(() => globalThis.__falasMotoGear.length)).toBe(2);
+  await page.getByRole('button', { name: 'Fechar ajudante' }).click();
+  await page.evaluate(() => globalThis.__resolverMicrofone?.({ getTracks: () => [{ stop() {} }] }));
+  await page.waitForTimeout(250);
+  expect(await page.evaluate(() => globalThis.__falasMotoGear.length)).toBe(2);
+
+  await abrirConfig(page);
+  await page.locator('#cfg-respostas-voz').uncheck({ force: true });
+  await page.locator('#modal-config').getByRole('button', { name: 'Fechar configurações' }).click();
+
+  await page.getByRole('button', { name: 'Abrir ajudante Moto Gear' }).click();
+  await page.fill('#assistente-input', 'E agora?');
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click();
+  await expect(page.locator('#assistente-mensagens')).toContainText('Agora estou respondendo sem voz.');
+  expect(await page.evaluate(() => globalThis.__falasMotoGear.length)).toBe(2);
+
+  await page.getByRole('button', { name: 'Ouvir esta resposta' }).last().click();
+  await expect.poll(() => page.evaluate(() => globalThis.__falasMotoGear.length)).toBe(3);
+});
+
 test('comando de voz prepara venda, pergunta quantidade e só confirma na tela de pagamento', async ({ page, baseURL }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'mediaDevices', {
