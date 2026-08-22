@@ -10,8 +10,10 @@ let gravador = null;
 let pedacosAudio = [];
 let fluxoAudio = null;
 let vendaEmPreparacao = null;
+let geracaoAssistente = 0;
 
 export function resetarAssistente() {
+  geracaoAssistente += 1;
   historico = [];
   rascunhoAtual = null;
   vendaEmPreparacao = null;
@@ -32,6 +34,7 @@ export function resetarAssistente() {
     rascunho.innerHTML = '';
     rascunho.classList.add('hidden');
   }
+  setOcupado(false);
 }
 
 function telaAtual() {
@@ -121,6 +124,7 @@ export async function enviarMensagem(textoForcado) {
   renderSugestoes([]);
   renderRascunho(null);
   const anteriores = historico.slice(-6);
+  const geracao = geracaoAssistente;
   adicionarMensagem('user', mensagem);
   setOcupado(true);
   try {
@@ -128,15 +132,19 @@ export async function enviarMensagem(textoForcado) {
     const resposta = venda
       ? await req('POST', '/assistente/venda', { mensagem, vendaAtual: vendaEmPreparacao })
       : await req('POST', '/assistente/conversar', { mensagem, tela: telaAtual(), historico: anteriores });
+    if (geracao !== geracaoAssistente) return;
     vendaEmPreparacao = venda ? resposta.venda : null;
     adicionarMensagem('assistant', resposta.resposta);
     renderSugestoes(resposta.sugestoes);
     renderRascunho(resposta.rascunho);
   } catch (err) {
+    if (geracao !== geracaoAssistente) return;
     adicionarMensagem('assistant', err.message || 'Não consegui responder agora.');
   } finally {
-    setOcupado(false);
-    campo.focus();
+    if (geracao === geracaoAssistente) {
+      setOcupado(false);
+      campo.focus();
+    }
   }
 }
 
@@ -150,17 +158,20 @@ function blobBase64(blob) {
 }
 
 async function transcreverBlob(blob) {
+  const geracao = geracaoAssistente;
   setOcupado(true, 'Transcrevendo áudio...');
   try {
     const audioBase64 = await blobBase64(blob);
     const resposta = await req('POST', '/assistente/transcrever', { audioBase64, mimeType: blob.type || 'audio/webm' });
+    if (geracao !== geracaoAssistente) return;
     setVal('assistente-input', resposta.texto);
     setOcupado(false);
     await enviarMensagem(resposta.texto);
   } catch (err) {
+    if (geracao !== geracaoAssistente) return;
     showToast(err.message || 'Não consegui entender o áudio.');
   } finally {
-    setOcupado(false);
+    if (geracao === geracaoAssistente) setOcupado(false);
   }
 }
 
@@ -217,11 +228,23 @@ export function aplicarRascunho() {
   if (!rascunhoAtual) return;
   const { tipo, dados } = rascunhoAtual;
   const area = el('assistente-rascunho');
+  const geracao = geracaoAssistente;
   area?.classList.add('assistant-draft-complete');
   rascunhoAtual = null;
   adicionarMensagem('assistant', 'Rascunho enviado para o formulário. Confira os dados e toque em Salvar para concluir.');
-  setTimeout(() => {
+  setTimeout(async () => {
+    if (geracao !== geracaoAssistente) return;
     renderRascunho(null);
+
+    if (tipo === 'venda') {
+      vendaEmPreparacao = null;
+      fecharAssistente();
+      const preenchida = await window.App.prepararVendaAssistente(dados.itens);
+      if (geracao !== geracaoAssistente || !preenchida) return;
+      showToast('Venda preenchida. Confira e escolha como receber.');
+      return;
+    }
+
     fecharAssistente();
 
     if (tipo === 'produto') {
@@ -244,11 +267,8 @@ export function aplicarRascunho() {
       window.App.switchTab('caixa');
       window.App.abrirModalDespesa();
       preencher({ desc: 'despesa-desc', valor: 'despesa-valor' }, dados);
-    } else if (tipo === 'venda') {
-      vendaEmPreparacao = null;
-      window.App.prepararVendaAssistente(dados.itens);
     }
-    showToast(tipo === 'venda' ? 'Venda preenchida. Confira e escolha como receber.' : 'Rascunho preenchido. Confira antes de salvar.');
+    showToast('Rascunho preenchido. Confira antes de salvar.');
   }, 220);
 }
 

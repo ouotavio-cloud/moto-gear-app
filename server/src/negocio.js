@@ -14,7 +14,7 @@
  * - Concluir lança no caixa apenas o valor pago na hora; o resto vira pendência.
  */
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { query, uma, todas, transacao } from './db.js';
 import * as mapear from './mapeadores.js';
@@ -53,14 +53,16 @@ export async function estadoCompleto(organizacaoId) {
 
 /* ------------------------------- transações ------------------------------- */
 
-async function lancar(tx, organizacaoId, { desc, valor, tipo, clienteNome = 'Avulso', origemDetalhada = '', origem = null, itens = null }) {
+async function lancar(tx, organizacaoId, { desc, valor, tipo, clienteNome = 'Avulso', origemDetalhada = '', origem = null, itens = null, cotacaoId = null }) {
   const id = novoId();
-  await tx.query(
-    `INSERT INTO transacoes (id, organizacao_id, descricao, valor, tipo, cliente_nome, origem_detalhada, origem, itens)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [id, organizacaoId, desc, dinheiro(valor), tipo, clienteNome, origemDetalhada, origem, itens ? JSON.stringify(itens) : null]
+  const { rows } = await tx.query(
+    `INSERT INTO transacoes (id, organizacao_id, descricao, valor, tipo, cliente_nome, origem_detalhada, origem, itens, cotacao_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     ON CONFLICT (organizacao_id, cotacao_id) WHERE cotacao_id IS NOT NULL DO NOTHING
+     RETURNING id`,
+    [id, organizacaoId, desc, dinheiro(valor), tipo, clienteNome, origemDetalhada, origem, itens ? JSON.stringify(itens) : null, cotacaoId]
   );
-  return id;
+  return rows[0]?.id ?? null;
 }
 
 export function registrarDespesa({ desc, valor }, organizacaoId) {
@@ -101,15 +103,18 @@ async function calcularBaixas(tx, itens, organizacaoId) {
  * Aplica as baixas travando as linhas envolvidas. `sinal` -1 debita, +1 devolve.
  * A trava é o que impede duas vendas simultâneas de furarem o estoque.
  */
-async function moverEstoque(tx, baixas, sinal, organizacaoId) {
+async function moverEstoque(tx, baixas, sinal, organizacaoId, permitirNegativo = false) {
+  const pendencias = [];
   for (const { produtoId, qtd } of baixas) {
     const { rows } = await tx.query('SELECT nome, qtd FROM produtos WHERE id = $1 AND organizacao_id = $2 FOR UPDATE', [produtoId, organizacaoId]);
     const produto = rows[0];
     if (!produto) throw erro(400, 'Uma das peças não existe mais no estoque.');
     const novo = Number(produto.qtd) + sinal * qtd;
-    if (novo < 0) throw erro(409, `Estoque insuficiente: ${produto.nome} (tem ${produto.qtd}, precisa de ${qtd}).`);
+    if (novo < 0 && !permitirNegativo) throw erro(409, `Estoque insuficiente: ${produto.nome} (tem ${produto.qtd}, precisa de ${qtd}).`);
+    if (novo < 0) pendencias.push({ produtoId, nome: produto.nome, faltam: Math.abs(novo) });
     await tx.query('UPDATE produtos SET qtd = $1 WHERE id = $2 AND organizacao_id = $3', [novo, produtoId, organizacaoId]);
   }
+  return pendencias;
 }
 
 /** Confere as mesmas baixas da venda sem alterar o estoque. */
@@ -131,6 +136,7 @@ export function registrarVenda({ itens, cotacao }, organizacaoId) {
     let total;
     let detalhados;
     let baixas;
+    let cotacaoId = null;
     if (cotacao) {
       let dados;
       try { dados = jwt.verify(String(cotacao), segredo()); } catch { throw erro(409, 'A cotação da venda expirou. Revise a venda novamente.'); }
@@ -145,25 +151,39 @@ export function registrarVenda({ itens, cotacao }, organizacaoId) {
       total = dinheiro(dados.total);
       detalhados = dados.itens;
       baixas = dados.baixas;
+      // Tokens emitidos imediatamente antes desta migração não tinham ID. O
+      // hash mantém esses pagamentos em andamento válidos e também idempotentes.
+      cotacaoId = String(dados.cotacaoId || createHash('sha256').update(String(cotacao)).digest('hex'));
     } else {
       ({ total, detalhados } = await precificar(tx, itens, organizacaoId));
       baixas = await calcularBaixas(tx, detalhados, organizacaoId);
     }
 
-    await moverEstoque(tx, baixas, -1, organizacaoId);
-
     const resumo = detalhados.map((d) => `${d.qtd}x ${d.nome}`).join(', ');
-    await lancar(tx, organizacaoId, {
+    const lancamento = {
       desc: `Venda Balcão: ${resumo}`,
       valor: total,
       tipo: 'entrada',
       clienteNome: 'Venda Balcão Avulsa',
       origemDetalhada: resumo,
       origem: 'venda',
-      itens: detalhados.map(({ tipo: t, itemId: i, nome: n, qtd: q }) => ({ tipo: t, itemId: i, nome: n, qtd: q }))
-    });
+      itens: detalhados.map(({ tipo: t, itemId: i, nome: n, qtd: q }) => ({ tipo: t, itemId: i, nome: n, qtd: q })),
+      cotacaoId
+    };
 
-    return { total };
+    // O lançamento com índice único é feito primeiro: duplo toque ou retry da
+    // mesma cotação retorna o resultado anterior sem duplicar caixa/estoque.
+    if (cotacao && !await lancar(tx, organizacaoId, lancamento)) {
+      return { total, estoquePendente: [], repetida: true };
+    }
+
+    // Uma cotação é usada depois que Dinheiro, Cartão ou Pix já foi confirmado.
+    // Se outra pessoa consumir a última peça nesse intervalo, registrar a venda
+    // e sinalizar a falta é mais seguro que deixar um pagamento aprovado órfão.
+    const estoquePendente = await moverEstoque(tx, baixas, -1, organizacaoId, Boolean(cotacao));
+    if (!cotacao) await lancar(tx, organizacaoId, lancamento);
+
+    return { total, estoquePendente };
   });
 }
 
@@ -173,7 +193,7 @@ export function cotacaoVenda({ itens }, organizacaoId) {
     const baixas = await calcularBaixas(tx, detalhados, organizacaoId);
     await validarEstoque(tx, baixas, organizacaoId);
     const cotacao = jwt.sign(
-      { tipo: 'venda-cotacao', organizacaoId, total, itens: detalhados, baixas },
+      { tipo: 'venda-cotacao', cotacaoId: novoId(), organizacaoId, total, itens: detalhados, baixas },
       segredo()
     );
     return { total, itens: detalhados, cotacao };
