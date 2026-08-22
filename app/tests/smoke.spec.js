@@ -196,6 +196,15 @@ test('ajudante fala respostas, permite ouvir novamente e respeita a configuraÃ§Ã
         speak(fala) { globalThis.__falasMotoGear.push(fala.text); }
       }
     });
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: () => new Promise((resolve) => { globalThis.__resolverMicrofone = resolve; })
+      }
+    });
+    globalThis.MediaRecorder = class {
+      static isTypeSupported() { return true; }
+    };
   });
   await page.route('**/api/assistente/conversar', async (rota) => {
     requisicoes += 1;
@@ -224,7 +233,11 @@ test('ajudante fala respostas, permite ouvir novamente e respeita a configuraÃ§Ã
 
   await page.fill('#assistente-input', 'Responda depois que eu fechar');
   await page.getByRole('button', { name: 'Enviar mensagem' }).click();
+  await page.getByRole('button', { name: 'Gravar mensagem de voz' }).click();
+  await page.getByRole('button', { name: 'Ouvir esta resposta' }).last().click();
+  expect(await page.evaluate(() => globalThis.__falasMotoGear.length)).toBe(2);
   await page.getByRole('button', { name: 'Fechar ajudante' }).click();
+  await page.evaluate(() => globalThis.__resolverMicrofone?.({ getTracks: () => [{ stop() {} }] }));
   await page.waitForTimeout(250);
   expect(await page.evaluate(() => globalThis.__falasMotoGear.length)).toBe(2);
 

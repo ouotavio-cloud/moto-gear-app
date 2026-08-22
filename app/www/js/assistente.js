@@ -48,7 +48,7 @@ function vozPortugues() {
 
 async function falarTexto(texto, { forcar = false } = {}) {
   const conteudo = String(texto ?? '').trim();
-  if (!conteudo || (!forcar && !respostasPorVozAtivas())) return false;
+  if (!conteudo || !podeFalarAutomaticamente() || (!forcar && !respostasPorVozAtivas())) return false;
   pararRespostaFalando();
   const geracao = geracaoVoz;
 
@@ -62,7 +62,7 @@ async function falarTexto(texto, { forcar = false } = {}) {
     }
   }
 
-  if (geracao !== geracaoVoz) return false;
+  if (geracao !== geracaoVoz || !podeFalarAutomaticamente()) return false;
   if (!forcar && (!respostasPorVozAtivas() || !podeFalarAutomaticamente())) return false;
   if (!globalThis.speechSynthesis || !globalThis.SpeechSynthesisUtterance) return false;
   try {
