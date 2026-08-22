@@ -213,7 +213,7 @@ test('ajudante fala respostas, permite ouvir novamente e respeita a configuraç�
 
   await page.getByRole('button', { name: 'Fechar ajudante' }).click();
   await abrirConfig(page);
-  await page.locator('#cfg-respostas-voz').uncheck();
+  await page.locator('#cfg-respostas-voz').uncheck({ force: true });
   await page.locator('#modal-config').getByRole('button', { name: 'Fechar configurações' }).click();
 
   await page.getByRole('button', { name: 'Abrir ajudante Moto Gear' }).click();
