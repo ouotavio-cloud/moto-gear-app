@@ -111,6 +111,33 @@ export async function abrirModalVenda() {
   el('btn-venda-pix')?.classList.toggle('hidden', !pixDisponivel());
 }
 
+export async function prepararVendaAssistente(itens = []) {
+  itensVendaTemp = [];
+  for (const item of itens) {
+    if (item.tipo === 'produto') {
+      const produto = db.produtos.find((registro) => registro.id === item.itemId);
+      if (!produto) continue;
+      const qtd = Math.max(1, Number(item.qtd) || 1);
+      itensVendaTemp.push({ tipo: 'produto', itemId: produto.id, nome: produto.nome, qtd, total: produto.venda * qtd });
+    } else if (item.tipo === 'servico') {
+      const servico = db.servicos.find((registro) => registro.id === item.itemId);
+      if (!servico) continue;
+      const qtd = Math.max(1, Number(item.qtd) || 1);
+      itensVendaTemp.push({ tipo: 'servico', itemId: servico.id, nome: servico.nome, qtd, total: precoTotalServico(servico) * qtd });
+    }
+  }
+  if (!itensVendaTemp.length) return showToast('O item da venda não está mais disponível.');
+
+  setVal('venda-add-qtd', 1);
+  mudarTipoVenda();
+  renderItensVenda();
+  el('btn-venda-cartao')?.classList.toggle('hidden', !maquininhaDisponivel());
+  el('btn-venda-pix')?.classList.toggle('hidden', !pixDisponivel());
+  abrirModal('modal-venda');
+  await carregarConfigPix();
+  el('btn-venda-pix')?.classList.toggle('hidden', !pixDisponivel());
+}
+
 const totalVenda = () => itensVendaTemp.reduce((acc, i) => acc + i.total, 0);
 const itensParaEnvio = () => itensVendaTemp.map(({ tipo, itemId, qtd }) => ({ tipo, itemId, qtd }));
 

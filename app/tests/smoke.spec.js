@@ -181,6 +181,58 @@ test('ajudante prepara serviço como rascunho e abre formulário para confirmaç
   await expect(page.locator('#serv-valor')).toHaveValue('45');
 });
 
+test('comando de voz prepara venda, pergunta quantidade e só confirma na tela de pagamento', async ({ page, baseURL }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) }
+    });
+    class GravadorFalso {
+      static isTypeSupported() { return true; }
+      constructor() { this.state = 'inactive'; this.mimeType = 'audio/webm'; }
+      start() { this.state = 'recording'; }
+      stop() {
+        this.state = 'inactive';
+        this.ondataavailable?.({ data: new Blob(['audio'], { type: this.mimeType }) });
+        this.onstop?.();
+      }
+    }
+    window.MediaRecorder = GravadorFalso;
+  });
+  await page.route('**/api/assistente/transcrever', (rota) => rota.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ texto: 'Venda óleo Yamalube', _ia: { provedor: 'groq' } })
+  }));
+
+  await abrirLogado(page, baseURL, token);
+  await cadastrarProduto(page, { nome: 'Óleo Yamalube 20W50', custo: 20, venda: 35, qtd: 5 });
+  await page.getByRole('button', { name: 'Abrir ajudante Moto Gear' }).click();
+  const microfone = page.getByRole('button', { name: 'Gravar mensagem de voz' });
+  await microfone.click();
+  // Durante a gravação o botão pulsa; no aparelho o toque funciona normalmente,
+  // e no navegador de teste usamos force para não esperar a animação parar.
+  await microfone.click({ force: true });
+
+  await expect(page.locator('#assistente-mensagens')).toContainText('Quantas unidades');
+  await page.getByRole('button', { name: '2 unidades' }).click();
+  await expect(page.locator('#assistente-rascunho')).toContainText('2x Óleo Yamalube 20W50');
+  await expect(page.locator('#assistente-rascunho')).toContainText('R$ 70,00');
+
+  let atual = await estado(page);
+  expect(atual.produtos[0].qtd).toBe(5);
+
+  await page.getByRole('button', { name: 'Revisar venda e receber' }).click();
+  await expect(page.locator('#modal-venda')).toHaveClass(/active/);
+  await expect(page.locator('#lista-itens-venda')).toContainText('2x Óleo Yamalube 20W50');
+  atual = await estado(page);
+  expect(atual.produtos[0].qtd).toBe(5);
+
+  await page.locator('#modal-venda').getByRole('button', { name: 'Dinheiro' }).click();
+  await expect(page.locator('#modal-venda')).not.toHaveClass(/active/);
+  await expect.poll(async () => (await estado(page)).produtos[0].qtd).toBe(3);
+});
+
 /* --------------------------------- estoque --------------------------------- */
 
 test('cadastrar peça grava no servidor e lança a compra no caixa', async ({ page, baseURL }) => {

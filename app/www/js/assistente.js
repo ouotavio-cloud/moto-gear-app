@@ -9,6 +9,7 @@ let rascunhoAtual = null;
 let gravador = null;
 let pedacosAudio = [];
 let fluxoAudio = null;
+let vendaEmPreparacao = null;
 
 function telaAtual() {
   return document.querySelector('.tab-content.active')?.id || 'tab-inicio';
@@ -31,7 +32,7 @@ function renderSugestoes(sugestoes = []) {
 }
 
 function rotuloRascunho(tipo) {
-  return ({ produto: 'Produto', servico: 'Serviço', cliente: 'Cliente', fornecedor: 'Fornecedor', despesa: 'Despesa' })[tipo] || 'Cadastro';
+  return ({ produto: 'Produto', servico: 'Serviço', cliente: 'Cliente', fornecedor: 'Fornecedor', despesa: 'Despesa', venda: 'Venda' })[tipo] || 'Cadastro';
 }
 
 function renderRascunho(rascunho) {
@@ -43,13 +44,17 @@ function renderRascunho(rascunho) {
     area.innerHTML = '';
     return;
   }
-  const linhas = Object.entries(rascunhoAtual.dados || {})
-    .map(([campo, valor]) => `<div><span>${esc(campo)}</span><strong>${esc(valor)}</strong></div>`)
-    .join('');
+  const venda = rascunhoAtual.tipo === 'venda';
+  const linhas = venda
+    ? (rascunhoAtual.dados.itens || []).map((item) => `<div><span>${esc(item.qtd)}x ${esc(item.nome)}</span><strong>${Number(item.total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></div>`).join('')
+      + `<div><span>Total</span><strong>${Number(rascunhoAtual.dados.total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></div>`
+    : Object.entries(rascunhoAtual.dados || {})
+      .map(([campo, valor]) => `<div><span>${esc(campo)}</span><strong>${esc(valor)}</strong></div>`)
+      .join('');
   area.innerHTML = `
     <p class="eyebrow">Rascunho de ${esc(rotuloRascunho(rascunhoAtual.tipo))}</p>
     <div class="assistant-draft-fields">${linhas}</div>
-    <button type="button" class="btn-primary mt-3" onclick="App.aplicarRascunhoIA()"><i data-lucide="wand-sparkles"></i> Revisar no formulário</button>`;
+    <button type="button" class="btn-primary mt-3" onclick="App.aplicarRascunhoIA()"><i data-lucide="${venda ? 'shopping-cart' : 'wand-sparkles'}"></i> ${venda ? 'Revisar venda e receber' : 'Revisar no formulário'}</button>`;
   area.classList.remove('hidden');
   atualizarIcones();
 }
@@ -64,8 +69,8 @@ function setOcupado(ocupado, texto = 'Pensando...') {
 export function abrirAssistente() {
   abrirModal('modal-assistente');
   if (!historico.length) {
-    adicionarMensagem('assistant', 'Oi! Posso explicar o Moto Gear ou preparar um cadastro para você revisar.');
-    renderSugestoes(['Como faço uma venda no PIX?', 'Quero cadastrar um serviço', 'Como funciona o estoque mínimo?']);
+    adicionarMensagem('assistant', 'Oi! Posso registrar uma venda por voz, explicar o Moto Gear ou preparar um cadastro para você revisar.');
+    renderSugestoes(['Registrar uma venda', 'Quero cadastrar um serviço', 'Como funciona o estoque mínimo?']);
   }
   setTimeout(() => el('assistente-input')?.focus(), 80);
 }
@@ -80,6 +85,11 @@ export function usarSugestao(texto) {
   enviarMensagem();
 }
 
+function iniciaFluxoVenda(mensagem) {
+  if (vendaEmPreparacao) return true;
+  return /^\s*(?:quero\s+)?(?:(?:registrar|registre|fazer|realizar)\s+)?(?:uma\s+)?(?:venda|vender|vendi)\b/i.test(mensagem);
+}
+
 export async function enviarMensagem(textoForcado) {
   const campo = el('assistente-input');
   const mensagem = String(textoForcado ?? campo.value).trim();
@@ -91,7 +101,11 @@ export async function enviarMensagem(textoForcado) {
   adicionarMensagem('user', mensagem);
   setOcupado(true);
   try {
-    const resposta = await req('POST', '/assistente/conversar', { mensagem, tela: telaAtual(), historico: anteriores });
+    const venda = iniciaFluxoVenda(mensagem);
+    const resposta = venda
+      ? await req('POST', '/assistente/venda', { mensagem, vendaAtual: vendaEmPreparacao })
+      : await req('POST', '/assistente/conversar', { mensagem, tela: telaAtual(), historico: anteriores });
+    vendaEmPreparacao = venda ? resposta.venda : null;
     adicionarMensagem('assistant', resposta.resposta);
     renderSugestoes(resposta.sugestoes);
     renderRascunho(resposta.rascunho);
@@ -207,8 +221,11 @@ export function aplicarRascunho() {
       window.App.switchTab('caixa');
       window.App.abrirModalDespesa();
       preencher({ desc: 'despesa-desc', valor: 'despesa-valor' }, dados);
+    } else if (tipo === 'venda') {
+      vendaEmPreparacao = null;
+      window.App.prepararVendaAssistente(dados.itens);
     }
-    showToast('Rascunho preenchido. Confira antes de salvar.');
+    showToast(tipo === 'venda' ? 'Venda preenchida. Confira e escolha como receber.' : 'Rascunho preenchido. Confira antes de salvar.');
   }, 220);
 }
 
