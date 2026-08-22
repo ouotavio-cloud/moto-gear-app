@@ -283,6 +283,23 @@ test('venda de serviço baixa as peças vinculadas', async () => {
   assert.equal(produtos.find((p) => p.id === oleo.id).qtd, 8);
 });
 
+test('cotação fixa o valor que será registrado mesmo se o preço mudar depois', async () => {
+  const produto = await criarProduto(api, { nome: 'Óleo cotado', custo: 20, venda: 35, qtd: 4 });
+  const cotada = await api('POST', '/vendas/cotacao', { itens: [{ tipo: 'produto', itemId: produto.id, qtd: 2 }] });
+  assert.equal(cotada.status, 200);
+  assert.equal(cotada.corpo.total, 70);
+  assert.ok(cotada.corpo.cotacao);
+
+  await api('PUT', `/produtos/${produto.id}`, { ...produto, venda: 50 });
+  const confirmada = await api('POST', '/vendas', { cotacao: cotada.corpo.cotacao });
+  assert.equal(confirmada.status, 201);
+  assert.equal(confirmada.corpo.total, 70);
+
+  const atual = await estado(api);
+  assert.equal(atual.produtos.find((p) => p.id === produto.id).qtd, 2);
+  assert.ok(atual.transacoes.some((t) => t.origem === 'venda' && t.valor === 70));
+});
+
 test('serviço sem estoque suficiente não deixa baixa pela metade', async () => {
   const parafuso = await criarProduto(api, { nome: 'Parafuso', custo: 1, venda: 3, qtd: 1 });
   const pastilha = await criarProduto(api, { nome: 'Pastilha dianteira', custo: 30, venda: 70, qtd: 5 });
@@ -609,7 +626,7 @@ test('ajudante prepara venda em conversa e só baixa estoque após confirmação
   let atual = await estado(api);
   assert.equal(atual.produtos.find((p) => p.id === produto.id).qtd, 6, 'conversa não pode baixar estoque');
 
-  const segundo = await api('POST', '/assistente/venda', { mensagem: '2 unidades', vendaAtual: primeiro.corpo.venda });
+  const segundo = await api('POST', '/assistente/venda', { mensagem: 'duas unidades', vendaAtual: primeiro.corpo.venda });
   assert.equal(segundo.status, 200);
   assert.equal(segundo.corpo.venda.fase, 'pronta');
   assert.deepEqual(segundo.corpo.rascunho.dados.itens.map(({ tipo, itemId, qtd }) => ({ tipo, itemId, qtd })), [
@@ -634,6 +651,28 @@ test('ajudante recusa quantidade acima do estoque sem criar rascunho', async () 
   assert.match(resposta.corpo.resposta, /estoque/i);
   const atual = await estado(api);
   assert.equal(atual.produtos.find((p) => p.id === produto.id).qtd, 1);
+});
+
+test('ajudante não confunde uma marca ausente com outro óleo', async () => {
+  await criarProduto(api, { nome: 'Óleo Yamalube 20W50', custo: 20, venda: 35, qtd: 6 });
+  const resposta = await api('POST', '/assistente/venda', { mensagem: 'Venda óleo Motul' });
+  assert.equal(resposta.status, 200);
+  assert.equal(resposta.corpo.rascunho, null);
+  assert.match(resposta.corpo.resposta, /não encontrei/i);
+});
+
+test('ajudante verifica peças vinculadas antes de preparar venda de serviço', async () => {
+  const oleo = await criarProduto(api, { nome: 'Óleo escasso', custo: 20, venda: 35, qtd: 1 });
+  const { corpo: servico } = await api('POST', '/servicos', {
+    nome: 'Troca premium',
+    valor: 40,
+    pecas: [{ produtoId: oleo.id, qtd: 2 }]
+  });
+  const resposta = await api('POST', '/assistente/venda', { mensagem: 'Venda 1 troca premium' });
+  assert.equal(resposta.status, 200);
+  assert.equal(resposta.corpo.venda.item.itemId, servico.id);
+  assert.equal(resposta.corpo.rascunho, null);
+  assert.match(resposta.corpo.resposta, /peças suficientes/i);
 });
 
 test('transcrição de voz avisa quando o Groq ainda não foi configurado', async () => {

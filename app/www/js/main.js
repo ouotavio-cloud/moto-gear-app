@@ -56,6 +56,7 @@ function escolherTipoCadastro(tipo) {
 }
 
 function mostrarLogin() {
+  assistente.resetarAssistente();
   setVal('login-servidor', servidor());
   setVal('login-senha', '');
   setVal('login-senha-confirmar', '');

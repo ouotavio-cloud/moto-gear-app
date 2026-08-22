@@ -11,6 +11,29 @@ let pedacosAudio = [];
 let fluxoAudio = null;
 let vendaEmPreparacao = null;
 
+export function resetarAssistente() {
+  historico = [];
+  rascunhoAtual = null;
+  vendaEmPreparacao = null;
+  pedacosAudio = [];
+  if (gravador?.state === 'recording') {
+    gravador.ondataavailable = null;
+    gravador.onstop = null;
+    gravador.stop();
+  }
+  gravador = null;
+  encerrarFluxoAudio();
+  const mensagens = el('assistente-mensagens');
+  const sugestoes = el('assistente-sugestoes');
+  const rascunho = el('assistente-rascunho');
+  if (mensagens) mensagens.innerHTML = '';
+  if (sugestoes) sugestoes.innerHTML = '';
+  if (rascunho) {
+    rascunho.innerHTML = '';
+    rascunho.classList.add('hidden');
+  }
+}
+
 function telaAtual() {
   return document.querySelector('.tab-content.active')?.id || 'tab-inicio';
 }

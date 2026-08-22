@@ -80,6 +80,22 @@ function semAcentos(texto) {
   return String(texto ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
+const NUMEROS_FALADOS = new Map(Object.entries({
+  um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
+  onze: 11, doze: 12, treze: 13, catorze: 14, quatorze: 14, quinze: 15, dezesseis: 16, dezassete: 17,
+  dezessete: 17, dezoito: 18, dezenove: 19, vinte: 20
+}));
+
+const PALAVRAS_NUMERO = [...NUMEROS_FALADOS.keys()].join('|');
+
+function numeroFalado(texto) {
+  const isolado = texto.match(new RegExp(`^(${PALAVRAS_NUMERO})(?: unidades?)?$`));
+  const comUnidade = texto.match(new RegExp(`\\b(${PALAVRAS_NUMERO})\\s+unidades?\\b`));
+  const nomeado = texto.match(new RegExp(`\\b(?:qtd|quantidade)\\s*(?:de)?\\s*(${PALAVRAS_NUMERO})\\b`));
+  const aposVenda = texto.match(new RegExp(`^(?:quero\\s+)?(?:registrar|registre|fazer|realizar)?\\s*(?:uma\\s+)?(?:venda|vender|vendi)\\s+(${PALAVRAS_NUMERO})\\b`));
+  return NUMEROS_FALADOS.get(isolado?.[1] || comUnidade?.[1] || nomeado?.[1] || aposVenda?.[1]) || null;
+}
+
 function quantidadeDaMensagem(mensagem) {
   const texto = semAcentos(mensagem);
   const isolada = texto.match(/^(\d{1,3})(?: unidades?)?$/);
@@ -87,15 +103,18 @@ function quantidadeDaMensagem(mensagem) {
   const nomeada = texto.match(/\b(?:qtd|quantidade)\s*(?:de)?\s*(\d{1,3})\b/);
   const aposVenda = texto.match(/^(?:quero\s+)?(?:registrar|registre|fazer|realizar)?\s*(?:uma\s+)?(?:venda|vender|vendi)\s+(\d{1,3})\b/);
   const valor = Number(isolada?.[1] || comUnidade?.[1] || nomeada?.[1] || aposVenda?.[1] || 0);
-  return valor > 0 ? Math.min(valor, 999) : null;
+  return valor > 0 ? Math.min(valor, 999) : numeroFalado(texto);
 }
 
 function buscaDaMensagem(mensagem) {
   return semAcentos(mensagem)
     .replace(/^(?:quero\s+)?(?:registrar|registre|fazer|realizar)?\s*(?:uma\s+)?(?:venda|vender|vendi)\s*/, '')
     .replace(/^\d{1,3}\s*(?:x|unidades?)?\s*/, '')
+    .replace(new RegExp(`^(${PALAVRAS_NUMERO})\\s*(?:unidades?)?\\s*`), '')
     .replace(/\b(?:qtd|quantidade)\s*(?:de)?\s*\d{1,3}\b/g, '')
+    .replace(new RegExp(`\\b(?:qtd|quantidade)\\s*(?:de)?\\s*(${PALAVRAS_NUMERO})\\b`, 'g'), '')
     .replace(/\b\d{1,3}\s*(?:x|unidades?)\b/g, '')
+    .replace(new RegExp(`\\b(${PALAVRAS_NUMERO})\\s+unidades?\\b`, 'g'), '')
     .trim();
 }
 
@@ -119,7 +138,14 @@ function catalogoVenda(estado) {
       const produto = estado.produtos.find((item) => item.id === peca.produtoId);
       return total + (produto ? Number(produto.venda) * Number(peca.qtd || 1) : 0);
     }, 0);
-    return { tipo: 'servico', itemId: servico.id, nome: servico.nome, valor: Number(servico.valor) + pecas, estoque: null };
+    const vinculadas = Array.isArray(servico.pecas) ? servico.pecas : [];
+    const limite = vinculadas.length
+      ? Math.min(...vinculadas.map((peca) => {
+        const produto = estado.produtos.find((item) => item.id === peca.produtoId);
+        return produto ? Math.floor(Number(produto.qtd) / Math.max(1, Number(peca.qtd) || 1)) : 0;
+      }))
+      : null;
+    return { tipo: 'servico', itemId: servico.id, nome: servico.nome, valor: Number(servico.valor) + pecas, estoque: limite };
   });
   return [...produtos, ...servicos];
 }
@@ -150,7 +176,7 @@ export async function prepararVenda({ mensagem, vendaAtual }, organizacaoId) {
       };
     }
     const candidatos = catalogo.map((opcao) => ({ ...opcao, pontos: pontuar(opcao.nome, busca) }))
-      .filter((opcao) => opcao.pontos > 0).sort((a, b) => b.pontos - a.pontos || a.nome.localeCompare(b.nome));
+      .filter((opcao) => opcao.pontos >= 300).sort((a, b) => b.pontos - a.pontos || a.nome.localeCompare(b.nome));
     if (!candidatos.length) {
       return { resposta: `Não encontrei “${texto}” nos produtos ou serviços ativos.`, sugestoes: [], venda: estadoVenda(null, 'aguardando_item'), rascunho: null };
     }
@@ -166,7 +192,7 @@ export async function prepararVenda({ mensagem, vendaAtual }, organizacaoId) {
   }
 
   if (!quantidade) {
-    const limite = item.tipo === 'produto' ? Math.min(3, Math.max(0, item.estoque)) : 3;
+    const limite = item.estoque === null ? 3 : Math.min(3, Math.max(0, item.estoque));
     return {
       resposta: `Encontrei ${item.nome}. Quantas unidades foram vendidas?`,
       sugestoes: Array.from({ length: limite }, (_, indice) => `${indice + 1} ${indice ? 'unidades' : 'unidade'}`),
@@ -175,9 +201,11 @@ export async function prepararVenda({ mensagem, vendaAtual }, organizacaoId) {
     };
   }
 
-  if (item.tipo === 'produto' && item.estoque < quantidade) {
+  if (item.estoque !== null && item.estoque < quantidade) {
     return {
-      resposta: `O estoque de ${item.nome} tem ${item.estoque} unidade(s), menos que as ${quantidade} solicitadas.`,
+      resposta: item.tipo === 'produto'
+        ? `O estoque de ${item.nome} tem ${item.estoque} unidade(s), menos que as ${quantidade} solicitadas.`
+        : `Não há peças suficientes para realizar ${quantidade} unidade(s) de ${item.nome}. É possível realizar ${item.estoque}.`,
       sugestoes: item.estoque > 0 ? [`${item.estoque} ${item.estoque === 1 ? 'unidade' : 'unidades'}`] : [],
       venda: estadoVenda(item, 'aguardando_quantidade'),
       rascunho: null

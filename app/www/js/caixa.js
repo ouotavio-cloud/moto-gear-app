@@ -1,6 +1,6 @@
 /** Caixa: extrato, venda de balcão, despesas e exportação. */
 
-import { db, req, acao } from './api.js';
+import { db, req, acao, carregarEstado } from './api.js';
 import { el, esc, moeda, showToast, abrirModal, fecharModal, setVal, int } from './ui.js';
 import { baixarOuCompartilhar } from './files.js';
 import { cobrarNoCartao, maquininhaDisponivel } from './mercado-pago.js';
@@ -37,6 +37,7 @@ export function renderCaixa() {
 /* ------------------------------ venda balcão ------------------------------ */
 
 let itensVendaTemp = [];
+let cotacaoVendaAtual = '';
 
 export function mudarTipoVenda() {
   const tipo = el('venda-add-tipo').value;
@@ -69,12 +70,14 @@ export function addItemVenda() {
   }
 
   itensVendaTemp.push({ tipo, itemId, nome, qtd, total });
+  cotacaoVendaAtual = '';
   setVal('venda-add-qtd', 1);
   renderItensVenda();
 }
 
 export function remItemVenda(indice) {
   itensVendaTemp.splice(indice, 1);
+  cotacaoVendaAtual = '';
   renderItensVenda();
 }
 
@@ -100,6 +103,7 @@ function renderItensVenda() {
 
 export async function abrirModalVenda() {
   itensVendaTemp = [];
+  cotacaoVendaAtual = '';
   setVal('venda-add-qtd', 1);
   mudarTipoVenda();
   renderItensVenda();
@@ -112,7 +116,9 @@ export async function abrirModalVenda() {
 }
 
 export async function prepararVendaAssistente(itens = []) {
+  await carregarEstado();
   itensVendaTemp = [];
+  cotacaoVendaAtual = '';
   for (const item of itens) {
     if (item.tipo === 'produto') {
       const produto = db.produtos.find((registro) => registro.id === item.itemId);
@@ -138,13 +144,27 @@ export async function prepararVendaAssistente(itens = []) {
   el('btn-venda-pix')?.classList.toggle('hidden', !pixDisponivel());
 }
 
-const totalVenda = () => itensVendaTemp.reduce((acc, i) => acc + i.total, 0);
 const itensParaEnvio = () => itensVendaTemp.map(({ tipo, itemId, qtd }) => ({ tipo, itemId, qtd }));
+
+async function cotarVenda() {
+  const { ok, resultado } = await acao(req('POST', '/vendas/cotacao', { itens: itensParaEnvio() }));
+  if (!ok) return null;
+  itensVendaTemp = resultado.itens;
+  cotacaoVendaAtual = resultado.cotacao;
+  renderItensVenda();
+  return resultado;
+}
+
+async function registrarVendaCotada(cotacao = cotacaoVendaAtual) {
+  return acao(req('POST', '/vendas', { cotacao }));
+}
 
 export async function salvarVenda() {
   if (!itensVendaTemp.length) return showToast('Adicione ao menos um item.');
 
-  const { ok, resultado } = await acao(req('POST', '/vendas', { itens: itensParaEnvio() }));
+  const cotacao = await cotarVenda();
+  if (!cotacao) return;
+  const { ok, resultado } = await registrarVendaCotada(cotacao.cotacao);
   if (ok) {
     fecharModal('modal-venda');
     showToast(`Venda registrada — ${moeda(resultado.total)}`);
@@ -154,13 +174,15 @@ export async function salvarVenda() {
 export async function venderNoCartao() {
   if (!itensVendaTemp.length) return showToast('Adicione ao menos um item.');
 
-  const valor = totalVenda();
+  const cotacao = await cotarVenda();
+  if (!cotacao) return;
+  const valor = cotacao.total;
   if (valor <= 0) return showToast('Valor inválido.');
 
   const descricao = itensVendaTemp.map((i) => `${i.qtd}x ${i.nome}`).join(', ');
   const resultado = await cobrarNoCartao(valor, descricao);
   if (resultado?.aprovado) {
-    const { ok, resultado: vendaRes } = await acao(req('POST', '/vendas', { itens: itensParaEnvio() }));
+    const { ok, resultado: vendaRes } = await registrarVendaCotada(cotacao.cotacao);
     if (ok) {
       fecharModal('modal-venda');
       showToast(`Venda no cartão — ${moeda(vendaRes.total)}`);
@@ -171,13 +193,15 @@ export async function venderNoCartao() {
 export async function venderNoPix() {
   if (!itensVendaTemp.length) return showToast('Adicione ao menos um item.');
 
-  const valor = totalVenda();
+  const cotacao = await cotarVenda();
+  if (!cotacao) return;
+  const valor = cotacao.total;
   if (valor <= 0) return showToast('Valor inválido.');
 
   const descricao = itensVendaTemp.map((i) => `${i.qtd}x ${i.nome}`).join(', ');
   const resultado = await cobrarNoPix(valor, descricao);
   if (resultado?.aprovado) {
-    const { ok, resultado: vendaRes } = await acao(req('POST', '/vendas', { itens: itensParaEnvio() }));
+    const { ok, resultado: vendaRes } = await registrarVendaCotada(cotacao.cotacao);
     if (ok) {
       fecharModal('modal-venda');
       showToast(`Venda no Pix — ${moeda(vendaRes.total)}`);
