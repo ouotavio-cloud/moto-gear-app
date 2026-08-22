@@ -3,7 +3,7 @@
 import { db, req, acao } from './api.js';
 import { el, esc, moeda, showToast, abrirModal, fecharModal, setVal, int } from './ui.js';
 import { baixarOuCompartilhar } from './files.js';
-import { cobrarNoCartao, maquininhaDisponivel } from './plugpag.js';
+import { cobrarNoCartao, maquininhaDisponivel } from './mercado-pago.js';
 import { cobrarNoPix, pixDisponivel, carregarConfigPix } from './pix.js';
 import { precoTotalServico } from './servicos.js';
 

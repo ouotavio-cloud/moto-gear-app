@@ -108,3 +108,13 @@ Groq Whisper e devolve `{ "texto": "..." }`.
 | `GET` | `/backup` | Estado completo com `_meta` |
 | `POST` | `/restaurar` | Substitui tudo; aceita backup da v1 |
 | `POST` | `/importar` | `{produtos[], clientes[], servicos[]}` em lote |
+
+### Mercado Pago Point Smart 2
+
+| Método | Rota | Função |
+|---|---|---|
+| `GET` | `/maquininha/status` | Localiza a N950 e confirma que está em modo PDV |
+| `POST` | `/maquininha/modo-pdv` | Ativa o modo PDV (somente chefe; exige reiniciar a Point) |
+| `POST` | `/maquininha/cobrancas` | Envia valor, débito/crédito e parcelas à Point |
+| `GET` | `/maquininha/cobrancas/:id` | Consulta aprovação, recusa ou cancelamento |
+| `POST` | `/maquininha/cobrancas/:id/cancelar` | Cancela uma cobrança pendente |

@@ -13,6 +13,10 @@ e cria o serviço e o banco sozinho.
    - **`GEMINI_API_KEY`** — a chave do [Google AI Studio](https://aistudio.google.com/apikey),
      usada como leitura principal de nota fiscal.
    - **`GROQ_API_KEY`** — chave do Groq para o ajudante e os comandos por voz.
+   - **`MERCADO_PAGO_ACCESS_TOKEN`** — Access Token de produção da aplicação
+     Mercado Pago vinculada à Point Smart 2. Não cole essa chave no APK.
+   - **`MERCADO_PAGO_TERMINAL_ID`** — opcional quando a conta possui apenas uma
+     Point Smart 2; com várias maquininhas, informe o identificador da N950.
    - **`CLOUDFLARE_ACCOUNT_ID`** e **`CLOUDFLARE_API_TOKEN`** — conta e token
      do Workers AI usados como fallback do Gemini e do ajudante.
 

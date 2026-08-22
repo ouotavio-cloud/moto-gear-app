@@ -254,27 +254,26 @@ test('venda de balcão baixa o estoque e credita o caixa', async ({ page, baseUR
 test('maquininha recebe valor, crédito e parcelamento antes de registrar a venda', async ({ page, baseURL }) => {
   // A atualização é outra integração; neste teste ela não deve cobrir os botões.
   await page.route('https://api.github.com/repos/**', (route) => route.fulfill({ status: 404, body: '{}' }));
-  await page.addInitScript(() => {
-    globalThis._plugPagCalls = [];
-    globalThis.Capacitor = {
-      isNativePlatform: () => true,
-      Plugins: {
-        PlugPag: {
-          listarDispositivos: async () => ({
-            selecionado: 'AA:BB:CC:DD:EE:FF',
-            dispositivos: [{ id: 'AA:BB:CC:DD:EE:FF', nome: 'Moderninha Teste', selecionado: true }]
-          }),
-          inicializar: async () => ({ ok: true, autenticado: true }),
-          selecionarDispositivo: async ({ id }) => ({ ok: true, id }),
-          addListener: () => ({ remove: async () => {} }),
-          pagar: async (dados) => {
-            globalThis._plugPagCalls.push(dados);
-            return { aprovado: true, bandeira: 'VISA', nsu: '123', transacaoCode: 'ABC' };
-          },
-          abortar: async () => ({ ok: true })
-        }
-      }
-    };
+  const chamadas = [];
+  let consultas = 0;
+  await page.route(/\/api\/maquininha\//, async (route) => {
+    const requisicao = route.request();
+    const url = new URL(requisicao.url());
+    if (url.pathname.endsWith('/status')) {
+      return route.fulfill({ json: { disponivel: true, modelo: 'Point Smart 2', identificacao: 'N950 TESTE', modo: 'PDV' } });
+    }
+    if (requisicao.method() === 'POST' && url.pathname.endsWith('/cobrancas')) {
+      chamadas.push(requisicao.postDataJSON());
+      return route.fulfill({ status: 201, json: { id: 'ORD_TESTE_1', status: 'created', aprovado: false } });
+    }
+    if (requisicao.method() === 'GET' && url.pathname.endsWith('/ORD_TESTE_1')) {
+      consultas += 1;
+      return route.fulfill({ json: consultas < 2
+        ? { id: 'ORD_TESTE_1', status: 'at_terminal', aprovado: false }
+        : { id: 'ORD_TESTE_1', status: 'processed', aprovado: true, bandeira: 'visa', parcelas: 3, nsu: '123' }
+      });
+    }
+    return route.fallback();
   });
   await abrirLogado(page, baseURL, token);
   await cadastrarProduto(page, { nome: 'Kit freio', custo: 20, venda: 67.89, qtd: 3 });
@@ -286,17 +285,19 @@ test('maquininha recebe valor, crédito e parcelamento antes de registrar a vend
   await page.locator('#btn-venda-cartao').click();
 
   await expect(page.locator('#modal-plugpag')).toHaveClass(/active/);
-  await expect(page.locator('#pp-dispositivo')).toHaveValue('AA:BB:CC:DD:EE:FF');
+  await expect(page.locator('#pp-dispositivo')).toHaveText('N950 TESTE');
   await page.getByRole('button', { name: 'Crédito parcelado' }).click();
   await page.selectOption('#pp-parcelas-qtd', '3');
-  await page.selectOption('#pp-parcelas-tipo', 'credito_parc_vendedor');
   await page.getByRole('button', { name: 'Continuar cobrança' }).click();
 
-  await expect.poll(() => page.evaluate(() => globalThis._plugPagCalls[0])).toEqual({
-    valorCentavos: 6789,
+  await expect.poll(() => chamadas[0]).toEqual({
+    valor: 67.89,
+    descricao: '1x Kit freio',
     tipo: 'credito_parc_vendedor',
     parcelas: 3
   });
+  // A primeira consulta ainda está no terminal: o estoque não pode baixar.
+  await expect.poll(() => consultas).toBeGreaterThanOrEqual(1);
   await expect(page.locator('#pp-status')).toContainText('Pagamento aprovado');
   await expect.poll(async () => (await estado(page)).produtos[0].qtd).toBe(2);
 });

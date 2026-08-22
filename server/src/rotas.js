@@ -17,6 +17,7 @@ import * as negocio from './negocio.js';
 import * as cadastros from './cadastros.js';
 import { lerNotaFiscal, statusIA } from './ia.js';
 import { conversar, transcrever } from './assistente.js';
+import { ativarModoPdv, cancelarCobranca, consultarCobranca, criarCobranca, statusPoint } from './mercado-pago.js';
 
 /** Encaminha erro de handler assíncrono para o middleware de erro do Express. */
 const rota = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -168,6 +169,31 @@ export function criarRotas() {
   api.post(
     '/vendas',
     rota(async (req, res) => res.status(201).json(await negocio.registrarVenda(req.body ?? {}, req.usuario.organizacaoId)))
+  );
+
+  /* ----------------------- Mercado Pago Point Smart 2 -------------------- */
+
+  api.get('/maquininha/status', rota(async (_req, res) => res.json(await statusPoint())));
+
+  api.post(
+    '/maquininha/modo-pdv',
+    exigirChefe,
+    rota(async (_req, res) => res.json(await ativarModoPdv()))
+  );
+
+  api.post(
+    '/maquininha/cobrancas',
+    rota(async (req, res) => res.status(201).json(await criarCobranca(req.body ?? {})))
+  );
+
+  api.get(
+    '/maquininha/cobrancas/:id',
+    rota(async (req, res) => res.json(await consultarCobranca(req.params.id)))
+  );
+
+  api.post(
+    '/maquininha/cobrancas/:id/cancelar',
+    rota(async (req, res) => res.json(await cancelarCobranca(req.params.id)))
   );
 
   api.post(

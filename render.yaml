@@ -47,6 +47,14 @@ services:
         sync: false
       - key: CLOUDFLARE_API_TOKEN
         sync: false
+      # Token privado da aplicação Mercado Pago. Usado somente pelo backend
+      # para enviar cobranças à Point Smart 2; nunca é entregue ao APK.
+      - key: MERCADO_PAGO_ACCESS_TOKEN
+        sync: false
+      # Opcional quando há uma única N950 na conta: ela é descoberta sozinha.
+      # Se houver mais de uma, informe aqui o id retornado pela API de terminais.
+      - key: MERCADO_PAGO_TERMINAL_ID
+        sync: false
 
 databases:
   - name: moto-gear-db
