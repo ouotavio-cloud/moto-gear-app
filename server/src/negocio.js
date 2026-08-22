@@ -53,14 +53,16 @@ export async function estadoCompleto(organizacaoId) {
 
 /* ------------------------------- transações ------------------------------- */
 
-async function lancar(tx, organizacaoId, { desc, valor, tipo, clienteNome = 'Avulso', origemDetalhada = '', origem = null, itens = null }) {
+async function lancar(tx, organizacaoId, { desc, valor, tipo, clienteNome = 'Avulso', origemDetalhada = '', origem = null, itens = null, cotacaoId = null }) {
   const id = novoId();
-  await tx.query(
-    `INSERT INTO transacoes (id, organizacao_id, descricao, valor, tipo, cliente_nome, origem_detalhada, origem, itens)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [id, organizacaoId, desc, dinheiro(valor), tipo, clienteNome, origemDetalhada, origem, itens ? JSON.stringify(itens) : null]
+  const { rows } = await tx.query(
+    `INSERT INTO transacoes (id, organizacao_id, descricao, valor, tipo, cliente_nome, origem_detalhada, origem, itens, cotacao_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     ON CONFLICT (organizacao_id, cotacao_id) WHERE cotacao_id IS NOT NULL DO NOTHING
+     RETURNING id`,
+    [id, organizacaoId, desc, dinheiro(valor), tipo, clienteNome, origemDetalhada, origem, itens ? JSON.stringify(itens) : null, cotacaoId]
   );
-  return id;
+  return rows[0]?.id ?? null;
 }
 
 export function registrarDespesa({ desc, valor }, organizacaoId) {
@@ -134,6 +136,7 @@ export function registrarVenda({ itens, cotacao }, organizacaoId) {
     let total;
     let detalhados;
     let baixas;
+    let cotacaoId = null;
     if (cotacao) {
       let dados;
       try { dados = jwt.verify(String(cotacao), segredo()); } catch { throw erro(409, 'A cotação da venda expirou. Revise a venda novamente.'); }
@@ -142,32 +145,42 @@ export function registrarVenda({ itens, cotacao }, organizacaoId) {
         || dados?.organizacaoId !== organizacaoId
         || !Array.isArray(dados?.itens)
         || !Array.isArray(dados?.baixas)
+        || !dados?.cotacaoId
       ) {
         throw erro(400, 'Cotação da venda inválida.');
       }
       total = dinheiro(dados.total);
       detalhados = dados.itens;
       baixas = dados.baixas;
+      cotacaoId = String(dados.cotacaoId);
     } else {
       ({ total, detalhados } = await precificar(tx, itens, organizacaoId));
       baixas = await calcularBaixas(tx, detalhados, organizacaoId);
     }
 
-    // Uma cotação é usada depois que Dinheiro, Cartão ou Pix já foi confirmado.
-    // Se outra pessoa consumir a última peça nesse intervalo, registrar a venda
-    // e sinalizar a falta é mais seguro que deixar um pagamento aprovado órfão.
-    const estoquePendente = await moverEstoque(tx, baixas, -1, organizacaoId, Boolean(cotacao));
-
     const resumo = detalhados.map((d) => `${d.qtd}x ${d.nome}`).join(', ');
-    await lancar(tx, organizacaoId, {
+    const lancamento = {
       desc: `Venda Balcão: ${resumo}`,
       valor: total,
       tipo: 'entrada',
       clienteNome: 'Venda Balcão Avulsa',
       origemDetalhada: resumo,
       origem: 'venda',
-      itens: detalhados.map(({ tipo: t, itemId: i, nome: n, qtd: q }) => ({ tipo: t, itemId: i, nome: n, qtd: q }))
-    });
+      itens: detalhados.map(({ tipo: t, itemId: i, nome: n, qtd: q }) => ({ tipo: t, itemId: i, nome: n, qtd: q })),
+      cotacaoId
+    };
+
+    // O lançamento com índice único é feito primeiro: duplo toque ou retry da
+    // mesma cotação retorna o resultado anterior sem duplicar caixa/estoque.
+    if (cotacao && !await lancar(tx, organizacaoId, lancamento)) {
+      return { total, estoquePendente: [], repetida: true };
+    }
+
+    // Uma cotação é usada depois que Dinheiro, Cartão ou Pix já foi confirmado.
+    // Se outra pessoa consumir a última peça nesse intervalo, registrar a venda
+    // e sinalizar a falta é mais seguro que deixar um pagamento aprovado órfão.
+    const estoquePendente = await moverEstoque(tx, baixas, -1, organizacaoId, Boolean(cotacao));
+    if (!cotacao) await lancar(tx, organizacaoId, lancamento);
 
     return { total, estoquePendente };
   });
@@ -179,7 +192,7 @@ export function cotacaoVenda({ itens }, organizacaoId) {
     const baixas = await calcularBaixas(tx, detalhados, organizacaoId);
     await validarEstoque(tx, baixas, organizacaoId);
     const cotacao = jwt.sign(
-      { tipo: 'venda-cotacao', organizacaoId, total, itens: detalhados, baixas },
+      { tipo: 'venda-cotacao', cotacaoId: novoId(), organizacaoId, total, itens: detalhados, baixas },
       segredo()
     );
     return { total, itens: detalhados, cotacao };

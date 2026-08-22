@@ -238,9 +238,9 @@ export function aplicarRascunho() {
 
     if (tipo === 'venda') {
       vendaEmPreparacao = null;
+      fecharAssistente();
       const preenchida = await window.App.prepararVendaAssistente(dados.itens);
       if (geracao !== geracaoAssistente || !preenchida) return;
-      fecharAssistente();
       showToast('Venda preenchida. Confira e escolha como receber.');
       return;
     }

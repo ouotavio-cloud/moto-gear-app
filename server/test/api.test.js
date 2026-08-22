@@ -301,6 +301,13 @@ test('cotação fixa o valor que será registrado mesmo se o preço mudar depois
   const atual = await estado(api);
   assert.equal(atual.produtos.find((p) => p.id === produto.id).qtd, -1);
   assert.ok(atual.transacoes.some((t) => t.origem === 'venda' && t.valor === 70));
+
+  const repetida = await api('POST', '/vendas', { cotacao: cotada.corpo.cotacao });
+  assert.equal(repetida.status, 201);
+  assert.equal(repetida.corpo.repetida, true);
+  const depoisDoRetry = await estado(api);
+  assert.equal(depoisDoRetry.produtos.find((p) => p.id === produto.id).qtd, -1, 'retry não pode baixar estoque outra vez');
+  assert.equal(depoisDoRetry.transacoes.filter((t) => t.origem === 'venda' && t.valor === 70).length, 1, 'retry não pode duplicar caixa');
 });
 
 test('serviço sem estoque suficiente não deixa baixa pela metade', async () => {

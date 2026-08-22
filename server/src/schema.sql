@@ -113,6 +113,12 @@ CREATE TABLE IF NOT EXISTS configuracoes (
   valor  TEXT NOT NULL
 );
 
+-- Identifica vendas originadas de uma cotação. O índice parcial torna a
+-- confirmação idempotente sem afetar lançamentos antigos ou manuais.
+ALTER TABLE transacoes ADD COLUMN IF NOT EXISTS cotacao_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_transacoes_cotacao
+  ON transacoes (organizacao_id, cotacao_id) WHERE cotacao_id IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_ordens_cliente ON ordens (cliente_id);
 CREATE INDEX IF NOT EXISTS idx_ordens_tipo_status ON ordens (tipo, status);
 CREATE INDEX IF NOT EXISTS idx_transacoes_data ON transacoes (data);
