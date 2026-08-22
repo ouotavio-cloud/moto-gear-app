@@ -228,6 +228,7 @@ const App = {
   importarPlanilha: importar.importarPlanilha,
   abrirConfig: configuracoes.abrirConfig,
   salvarPreferencias: configuracoes.salvarPreferencias,
+  alternarRespostasVoz: configuracoes.alternarRespostasVoz,
   trocarSenha: configuracoes.trocarSenha,
   sairDaConta: configuracoes.sairDaConta,
 
@@ -247,6 +248,7 @@ const App = {
   usarSugestaoIA: assistente.usarSugestao,
   alternarGravacaoIA: assistente.alternarGravacao,
   aplicarRascunhoIA: assistente.aplicarRascunho,
+  ouvirRespostaIA: assistente.ouvirResposta,
   prepararVendaAssistente: caixa.prepararVendaAssistente,
 
   // Mercado Pago Point Smart 2

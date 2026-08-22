@@ -466,6 +466,18 @@
     @apply self-end rounded-br-md bg-gear-orange text-white;
   }
 
+  .assistant-replay {
+    @apply mt-2 flex min-h-9 items-center gap-1.5 rounded-full border border-slate-600/80 px-2.5 py-1 text-[11px] font-semibold text-slate-300 transition-colors hover:border-orange-400/60 hover:text-orange-300 active:scale-95;
+  }
+
+  .assistant-replay::after {
+    content: 'Ouvir';
+  }
+
+  .assistant-replay svg {
+    @apply h-3.5 w-3.5;
+  }
+
   .assistant-suggestions {
     @apply flex shrink-0 gap-2 overflow-x-auto py-2;
     scrollbar-width: none;

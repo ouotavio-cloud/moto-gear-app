@@ -11,12 +11,82 @@ let pedacosAudio = [];
 let fluxoAudio = null;
 let vendaEmPreparacao = null;
 let geracaoAssistente = 0;
+let sequenciaMensagens = 0;
+const mensagensFaladas = new Map();
+const CHAVE_RESPOSTAS_VOZ = 'motogear_respostas_voz';
+
+export function respostasPorVozAtivas() {
+  try {
+    return localStorage.getItem(CHAVE_RESPOSTAS_VOZ) !== 'nao';
+  } catch {
+    return true;
+  }
+}
+
+export function pararRespostaFalando() {
+  const nativo = plugin('MotoGearNative');
+  nativo?.stopSpeaking?.().catch?.(() => {});
+  globalThis.speechSynthesis?.cancel?.();
+}
+
+export function definirRespostasPorVoz(ativas) {
+  try {
+    localStorage.setItem(CHAVE_RESPOSTAS_VOZ, ativas ? 'sim' : 'nao');
+  } catch (err) {
+    console.error('Não consegui salvar a preferência de voz', err);
+  }
+  if (!ativas) pararRespostaFalando();
+}
+
+function vozPortugues() {
+  const vozes = globalThis.speechSynthesis?.getVoices?.() || [];
+  return vozes.find((voz) => /^pt-BR$/i.test(voz.lang)) || vozes.find((voz) => /^pt\b/i.test(voz.lang)) || null;
+}
+
+async function falarTexto(texto, { forcar = false } = {}) {
+  const conteudo = String(texto ?? '').trim();
+  if (!conteudo || (!forcar && !respostasPorVozAtivas())) return false;
+  pararRespostaFalando();
+
+  const nativo = plugin('MotoGearNative');
+  if (nativo?.speak) {
+    try {
+      await nativo.speak({ text: conteudo, language: 'pt-BR', rate: 1 });
+      return true;
+    } catch (err) {
+      console.error('Voz nativa indisponível, usando voz do navegador', err);
+    }
+  }
+
+  if (!globalThis.speechSynthesis || !globalThis.SpeechSynthesisUtterance) return false;
+  try {
+    const fala = new globalThis.SpeechSynthesisUtterance(conteudo);
+    fala.lang = 'pt-BR';
+    fala.rate = 1;
+    fala.pitch = 1;
+    fala.voice = vozPortugues();
+    globalThis.speechSynthesis.speak(fala);
+    return true;
+  } catch (err) {
+    console.error('Voz do navegador indisponível', err);
+    return false;
+  }
+}
+
+export async function ouvirResposta(id) {
+  const texto = mensagensFaladas.get(String(id));
+  if (!texto) return;
+  if (!await falarTexto(texto, { forcar: true })) showToast('A voz não está disponível neste aparelho.');
+}
 
 export function resetarAssistente() {
   geracaoAssistente += 1;
   historico = [];
   rascunhoAtual = null;
   vendaEmPreparacao = null;
+  sequenciaMensagens = 0;
+  mensagensFaladas.clear();
+  pararRespostaFalando();
   pedacosAudio = [];
   if (gravador?.state === 'recording') {
     gravador.ondataavailable = null;
@@ -42,12 +112,20 @@ function telaAtual() {
 }
 
 function adicionarMensagem(role, content) {
-  historico.push({ role, content: String(content) });
+  const texto = String(content);
+  historico.push({ role, content: texto });
   historico = historico.slice(-12);
   const lista = el('assistente-mensagens');
   const classe = role === 'user' ? 'assistant-message-user' : 'assistant-message-ai';
-  lista.insertAdjacentHTML('beforeend', `<div class="assistant-message ${classe}">${esc(content)}</div>`);
+  const id = role === 'assistant' ? `fala-${++sequenciaMensagens}` : '';
+  if (id) mensagensFaladas.set(id, texto);
+  lista.insertAdjacentHTML('beforeend', `
+    <div class="assistant-message ${classe}">
+      <span>${esc(texto)}</span>
+      ${id ? `<button type="button" class="assistant-replay" onclick="App.ouvirRespostaIA('${id}')" aria-label="Ouvir esta resposta"><i data-lucide="volume-2" aria-hidden="true"></i></button>` : ''}
+    </div>`);
   lista.scrollTop = lista.scrollHeight;
+  atualizarIcones();
 }
 
 function renderSugestoes(sugestoes = []) {
@@ -103,6 +181,7 @@ export function abrirAssistente() {
 
 export function fecharAssistente() {
   if (gravador?.state === 'recording') gravador.stop();
+  pararRespostaFalando();
   fecharModal('modal-assistente');
 }
 
@@ -120,6 +199,7 @@ export async function enviarMensagem(textoForcado) {
   const campo = el('assistente-input');
   const mensagem = String(textoForcado ?? campo.value).trim();
   if (!mensagem || campo.disabled) return;
+  pararRespostaFalando();
   campo.value = '';
   renderSugestoes([]);
   renderRascunho(null);
@@ -135,11 +215,14 @@ export async function enviarMensagem(textoForcado) {
     if (geracao !== geracaoAssistente) return;
     vendaEmPreparacao = venda ? resposta.venda : null;
     adicionarMensagem('assistant', resposta.resposta);
+    falarTexto(resposta.resposta);
     renderSugestoes(resposta.sugestoes);
     renderRascunho(resposta.rascunho);
   } catch (err) {
     if (geracao !== geracaoAssistente) return;
-    adicionarMensagem('assistant', err.message || 'Não consegui responder agora.');
+    const mensagemErro = err.message || 'Não consegui responder agora.';
+    adicionarMensagem('assistant', mensagemErro);
+    falarTexto(mensagemErro);
   } finally {
     if (geracao === geracaoAssistente) {
       setOcupado(false);
@@ -191,6 +274,7 @@ export async function alternarGravacao() {
     return showToast('Gravação de áudio não está disponível neste aparelho.');
   }
   try {
+    pararRespostaFalando();
     const nativo = plugin('MotoGearNative');
     if (nativo) {
       const permissao = await nativo.requestMicrophone();
