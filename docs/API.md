@@ -101,6 +101,11 @@ rascunho permitido para o aplicativo preencher e o usuário revisar.
 `POST /assistente/transcrever` recebe `audioBase64` e `mimeType`. A rota usa o
 Groq Whisper e devolve `{ "texto": "..." }`.
 
+`POST /assistente/venda` recebe `mensagem` e o estado opcional `vendaAtual`.
+Ele procura produtos e serviços ativos da própria oficina, pergunta a quantidade
+quando necessário e devolve um rascunho. Estoque e caixa só mudam quando o
+usuário revisa esse rascunho e confirma uma forma de pagamento.
+
 ## Backup e importação
 
 | Método | Rota | O que faz |

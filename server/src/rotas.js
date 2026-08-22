@@ -16,7 +16,7 @@ import {
 import * as negocio from './negocio.js';
 import * as cadastros from './cadastros.js';
 import { lerNotaFiscal, statusIA } from './ia.js';
-import { conversar, transcrever } from './assistente.js';
+import { conversar, prepararVenda, transcrever } from './assistente.js';
 import { ativarModoPdv, cancelarCobranca, consultarCobranca, criarCobranca, statusPoint } from './mercado-pago.js';
 
 /** Encaminha erro de handler assíncrono para o middleware de erro do Express. */
@@ -256,6 +256,11 @@ export function criarRotas() {
   api.post(
     '/assistente/transcrever',
     rota(async (req, res) => res.json(await transcrever(req.body ?? {})))
+  );
+
+  api.post(
+    '/assistente/venda',
+    rota(async (req, res) => res.json(await prepararVenda(req.body ?? {}, req.usuario.organizacaoId)))
   );
 
   /* --------------------------- backup e planilha --------------------------- */

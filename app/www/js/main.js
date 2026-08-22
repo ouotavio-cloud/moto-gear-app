@@ -246,6 +246,7 @@ const App = {
   usarSugestaoIA: assistente.usarSugestao,
   alternarGravacaoIA: assistente.alternarGravacao,
   aplicarRascunhoIA: assistente.aplicarRascunho,
+  prepararVendaAssistente: caixa.prepararVendaAssistente,
 
   // Mercado Pago Point Smart 2
   ppDebito: () => mercadoPago.executarCobranca('debito', 1),

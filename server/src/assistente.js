@@ -1,6 +1,6 @@
 /** Copiloto do Moto Gear: ajuda contextual, rascunhos e transcrição de voz. */
 
-import { erro } from './negocio.js';
+import { erro, estadoCompleto } from './negocio.js';
 import { cloudflareChat, executarComFallback, extrairTextoJSON, falhaProvedor, fetchComTimeout } from './ia.js';
 
 const MANUAL = {
@@ -18,7 +18,7 @@ O ajudante nunca salva sozinho: ele prepara um rascunho para a pessoa revisar e 
   configuracoes: `Configurações contém servidor, Pix, usuários, convite, backup, restauração, importação e troca de senha.`
 };
 
-const TIPOS_RASCUNHO = new Set(['produto', 'servico', 'cliente', 'fornecedor', 'despesa']);
+const TIPOS_RASCUNHO = new Set(['produto', 'servico', 'cliente', 'fornecedor', 'despesa', 'venda']);
 
 function contextoDaTela(tela) {
   const id = String(tela ?? '').replace(/^tab-/, '').toLowerCase();
@@ -49,6 +49,19 @@ ${contextoDaTela(tela)}`;
 
 function normalizarRascunho(valor) {
   if (!valor || !TIPOS_RASCUNHO.has(valor.tipo) || typeof valor.dados !== 'object') return null;
+  if (valor.tipo === 'venda') {
+    const itens = (Array.isArray(valor.dados.itens) ? valor.dados.itens : [])
+      .filter((item) => ['produto', 'servico'].includes(item?.tipo) && item?.itemId)
+      .map((item) => ({
+        tipo: item.tipo,
+        itemId: String(item.itemId),
+        nome: String(item.nome ?? '').slice(0, 160),
+        qtd: Math.max(1, Math.min(999, Math.trunc(Number(item.qtd) || 1))),
+        valorUnitario: Number(item.valorUnitario) || 0,
+        total: Number(item.total) || 0
+      }));
+    return itens.length ? { tipo: 'venda', dados: { itens, total: Number(valor.dados.total) || 0 } } : null;
+  }
   const permitidos = {
     produto: ['nome', 'codigoBarras', 'categoria', 'marca', 'custo', 'venda', 'qtd', 'min'],
     servico: ['nome', 'valor'],
@@ -61,6 +74,126 @@ function normalizarRascunho(valor) {
     if (valor.dados[campo] !== undefined && valor.dados[campo] !== null) dados[campo] = valor.dados[campo];
   }
   return Object.keys(dados).length ? { tipo: valor.tipo, dados } : null;
+}
+
+function semAcentos(texto) {
+  return String(texto ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function quantidadeDaMensagem(mensagem) {
+  const texto = semAcentos(mensagem);
+  const isolada = texto.match(/^(\d{1,3})(?: unidades?)?$/);
+  const comUnidade = texto.match(/\b(\d{1,3})\s*(?:x|unidades?)\b/);
+  const nomeada = texto.match(/\b(?:qtd|quantidade)\s*(?:de)?\s*(\d{1,3})\b/);
+  const aposVenda = texto.match(/^(?:quero\s+)?(?:registrar|registre|fazer|realizar)?\s*(?:uma\s+)?(?:venda|vender|vendi)\s+(\d{1,3})\b/);
+  const valor = Number(isolada?.[1] || comUnidade?.[1] || nomeada?.[1] || aposVenda?.[1] || 0);
+  return valor > 0 ? Math.min(valor, 999) : null;
+}
+
+function buscaDaMensagem(mensagem) {
+  return semAcentos(mensagem)
+    .replace(/^(?:quero\s+)?(?:registrar|registre|fazer|realizar)?\s*(?:uma\s+)?(?:venda|vender|vendi)\s*/, '')
+    .replace(/^\d{1,3}\s*(?:x|unidades?)?\s*/, '')
+    .replace(/\b(?:qtd|quantidade)\s*(?:de)?\s*\d{1,3}\b/g, '')
+    .replace(/\b\d{1,3}\s*(?:x|unidades?)\b/g, '')
+    .trim();
+}
+
+function pontuar(nome, busca) {
+  const alvo = semAcentos(nome);
+  if (!busca) return 0;
+  if (alvo === busca) return 1_000;
+  if (alvo.startsWith(busca) || alvo.includes(busca)) return 800 - Math.abs(alvo.length - busca.length);
+  if (busca.includes(alvo)) return 700 - Math.abs(alvo.length - busca.length);
+  const termos = busca.split(' ').filter(Boolean);
+  const encontrados = termos.filter((termo) => alvo.includes(termo)).length;
+  return encontrados ? (encontrados / termos.length) * 500 : 0;
+}
+
+function catalogoVenda(estado) {
+  const produtos = estado.produtos.map((produto) => ({
+    tipo: 'produto', itemId: produto.id, nome: produto.nome, valor: Number(produto.venda), estoque: Number(produto.qtd)
+  }));
+  const servicos = estado.servicos.map((servico) => {
+    const pecas = (Array.isArray(servico.pecas) ? servico.pecas : []).reduce((total, peca) => {
+      const produto = estado.produtos.find((item) => item.id === peca.produtoId);
+      return total + (produto ? Number(produto.venda) * Number(peca.qtd || 1) : 0);
+    }, 0);
+    return { tipo: 'servico', itemId: servico.id, nome: servico.nome, valor: Number(servico.valor) + pecas, estoque: null };
+  });
+  return [...produtos, ...servicos];
+}
+
+function estadoVenda(item, fase, quantidade = null) {
+  return { fase, item: item ? { tipo: item.tipo, itemId: item.itemId, nome: item.nome, valor: item.valor, estoque: item.estoque } : null, quantidade };
+}
+
+export async function prepararVenda({ mensagem, vendaAtual }, organizacaoId) {
+  const texto = String(mensagem ?? '').trim();
+  if (!texto) throw erro(400, 'Fale qual produto ou serviço deseja vender.');
+  if (/^(cancelar|cancela|desistir|desisti)(?:\s+(?:a\s+)?venda)?[.!]?$/i.test(texto)) {
+    return { resposta: 'Tudo bem, cancelei o rascunho da venda.', sugestoes: ['Registrar uma venda'], venda: null, rascunho: null };
+  }
+  const catalogo = catalogoVenda(await estadoCompleto(organizacaoId));
+  const atualId = String(vendaAtual?.item?.itemId ?? '');
+  let item = atualId ? catalogo.find((opcao) => opcao.itemId === atualId) : null;
+  const quantidade = quantidadeDaMensagem(texto) || Number(vendaAtual?.quantidade) || null;
+
+  if (!item) {
+    const busca = buscaDaMensagem(texto);
+    if (!busca) {
+      return {
+        resposta: 'Qual produto ou serviço você quer vender?',
+        sugestoes: catalogo.slice(0, 3).map((opcao) => opcao.nome),
+        venda: estadoVenda(null, 'aguardando_item'),
+        rascunho: null
+      };
+    }
+    const candidatos = catalogo.map((opcao) => ({ ...opcao, pontos: pontuar(opcao.nome, busca) }))
+      .filter((opcao) => opcao.pontos > 0).sort((a, b) => b.pontos - a.pontos || a.nome.localeCompare(b.nome));
+    if (!candidatos.length) {
+      return { resposta: `Não encontrei “${texto}” nos produtos ou serviços ativos.`, sugestoes: [], venda: estadoVenda(null, 'aguardando_item'), rascunho: null };
+    }
+    if (candidatos.length > 1 && candidatos[0].pontos < 1_000 && candidatos[0].pontos - candidatos[1].pontos < 80) {
+      return {
+        resposta: 'Encontrei mais de uma opção. Qual delas você quis dizer?',
+        sugestoes: candidatos.slice(0, 3).map((opcao) => opcao.nome),
+        venda: estadoVenda(null, 'aguardando_item'),
+        rascunho: null
+      };
+    }
+    item = candidatos[0];
+  }
+
+  if (!quantidade) {
+    const limite = item.tipo === 'produto' ? Math.min(3, Math.max(0, item.estoque)) : 3;
+    return {
+      resposta: `Encontrei ${item.nome}. Quantas unidades foram vendidas?`,
+      sugestoes: Array.from({ length: limite }, (_, indice) => `${indice + 1} ${indice ? 'unidades' : 'unidade'}`),
+      venda: estadoVenda(item, 'aguardando_quantidade'),
+      rascunho: null
+    };
+  }
+
+  if (item.tipo === 'produto' && item.estoque < quantidade) {
+    return {
+      resposta: `O estoque de ${item.nome} tem ${item.estoque} unidade(s), menos que as ${quantidade} solicitadas.`,
+      sugestoes: item.estoque > 0 ? [`${item.estoque} ${item.estoque === 1 ? 'unidade' : 'unidades'}`] : [],
+      venda: estadoVenda(item, 'aguardando_quantidade'),
+      rascunho: null
+    };
+  }
+
+  const total = Math.round(item.valor * quantidade * 100) / 100;
+  return {
+    resposta: `Preparei ${quantidade}x ${item.nome}, total de R$ ${total.toFixed(2).replace('.', ',')}. Revise antes de receber o pagamento.`,
+    sugestoes: [],
+    venda: estadoVenda(item, 'pronta', quantidade),
+    rascunho: normalizarRascunho({
+      tipo: 'venda',
+      dados: { itens: [{ tipo: item.tipo, itemId: item.itemId, nome: item.nome, qtd: quantidade, valorUnitario: item.valor, total }], total }
+    })
+  };
 }
 
 function normalizarResposta(valor, provedor) {

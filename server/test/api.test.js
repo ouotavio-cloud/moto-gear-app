@@ -597,6 +597,45 @@ test('ajudante oferece ajuda local mesmo antes de configurar provedores externos
   assert.equal(corpo._ia.provedor, 'ajuda-local');
 });
 
+test('ajudante prepara venda em conversa e só baixa estoque após confirmação', async () => {
+  const produto = await criarProduto(api, { nome: 'Óleo Yamalube 20W50', custo: 20, venda: 35, qtd: 6 });
+
+  const primeiro = await api('POST', '/assistente/venda', { mensagem: 'Venda óleo Yamalub' });
+  assert.equal(primeiro.status, 200);
+  assert.equal(primeiro.corpo.venda.fase, 'aguardando_quantidade');
+  assert.equal(primeiro.corpo.venda.item.itemId, produto.id);
+  assert.match(primeiro.corpo.resposta, /quantas unidades/i);
+
+  let atual = await estado(api);
+  assert.equal(atual.produtos.find((p) => p.id === produto.id).qtd, 6, 'conversa não pode baixar estoque');
+
+  const segundo = await api('POST', '/assistente/venda', { mensagem: '2 unidades', vendaAtual: primeiro.corpo.venda });
+  assert.equal(segundo.status, 200);
+  assert.equal(segundo.corpo.venda.fase, 'pronta');
+  assert.deepEqual(segundo.corpo.rascunho.dados.itens.map(({ tipo, itemId, qtd }) => ({ tipo, itemId, qtd })), [
+    { tipo: 'produto', itemId: produto.id, qtd: 2 }
+  ]);
+  assert.equal(segundo.corpo.rascunho.dados.total, 70);
+
+  atual = await estado(api);
+  assert.equal(atual.produtos.find((p) => p.id === produto.id).qtd, 6, 'rascunho ainda não pode baixar estoque');
+
+  const confirmada = await api('POST', '/vendas', { itens: segundo.corpo.rascunho.dados.itens });
+  assert.equal(confirmada.status, 201);
+  atual = await estado(api);
+  assert.equal(atual.produtos.find((p) => p.id === produto.id).qtd, 4);
+});
+
+test('ajudante recusa quantidade acima do estoque sem criar rascunho', async () => {
+  const produto = await criarProduto(api, { nome: 'Óleo Motul 10W40', custo: 30, venda: 50, qtd: 1 });
+  const resposta = await api('POST', '/assistente/venda', { mensagem: 'Venda 3 óleo Motul 10W40' });
+  assert.equal(resposta.status, 200);
+  assert.equal(resposta.corpo.rascunho, null);
+  assert.match(resposta.corpo.resposta, /estoque/i);
+  const atual = await estado(api);
+  assert.equal(atual.produtos.find((p) => p.id === produto.id).qtd, 1);
+});
+
 test('transcrição de voz avisa quando o Groq ainda não foi configurado', async () => {
   delete process.env.GROQ_API_KEY;
   const { status, corpo } = await api('POST', '/assistente/transcrever', { audioBase64: 'YWJj' });
