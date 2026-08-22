@@ -210,7 +210,9 @@ test('comando de voz prepara venda, pergunta quantidade e só confirma na tela d
   await page.getByRole('button', { name: 'Abrir ajudante Moto Gear' }).click();
   const microfone = page.getByRole('button', { name: 'Gravar mensagem de voz' });
   await microfone.click();
-  await microfone.click();
+  // Durante a gravação o botão pulsa; no aparelho o toque funciona normalmente,
+  // e no navegador de teste usamos force para não esperar a animação parar.
+  await microfone.click({ force: true });
 
   await expect(page.locator('#assistente-mensagens')).toContainText('Quantas unidades');
   await page.getByRole('button', { name: '2 unidades' }).click();
