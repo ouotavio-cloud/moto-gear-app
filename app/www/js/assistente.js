@@ -170,6 +170,10 @@ function setOcupado(ocupado, texto = 'Pensando...') {
   el('assistente-status').classList.toggle('hidden', !ocupado);
 }
 
+function podeFalarAutomaticamente() {
+  return el('modal-assistente')?.classList.contains('active') && gravador?.state !== 'recording';
+}
+
 export function abrirAssistente() {
   abrirModal('modal-assistente');
   if (!historico.length) {
@@ -215,14 +219,14 @@ export async function enviarMensagem(textoForcado) {
     if (geracao !== geracaoAssistente) return;
     vendaEmPreparacao = venda ? resposta.venda : null;
     adicionarMensagem('assistant', resposta.resposta);
-    falarTexto(resposta.resposta);
+    if (podeFalarAutomaticamente()) falarTexto(resposta.resposta);
     renderSugestoes(resposta.sugestoes);
     renderRascunho(resposta.rascunho);
   } catch (err) {
     if (geracao !== geracaoAssistente) return;
     const mensagemErro = err.message || 'Não consegui responder agora.';
     adicionarMensagem('assistant', mensagemErro);
-    falarTexto(mensagemErro);
+    if (podeFalarAutomaticamente()) falarTexto(mensagemErro);
   } finally {
     if (geracao === geracaoAssistente) {
       setOcupado(false);

@@ -182,6 +182,7 @@ test('ajudante prepara serviço como rascunho e abre formulário para confirmaç
 });
 
 test('ajudante fala respostas, permite ouvir novamente e respeita a configuração', async ({ page, baseURL }) => {
+  let requisicoes = 0;
   await page.addInitScript(() => {
     globalThis.__falasMotoGear = [];
     globalThis.SpeechSynthesisUtterance = class {
@@ -196,11 +197,15 @@ test('ajudante fala respostas, permite ouvir novamente e respeita a configuraç�
       }
     });
   });
-  await page.route('**/api/assistente/conversar', (rota) => rota.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ resposta: 'Claro. Posso ajudar com sua oficina.', sugestoes: [], rascunho: null })
-  }));
+  await page.route('**/api/assistente/conversar', async (rota) => {
+    requisicoes += 1;
+    if (requisicoes === 2) await new Promise((resolve) => setTimeout(resolve, 150));
+    await rota.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ resposta: 'Claro. Posso ajudar com sua oficina.', sugestoes: [], rascunho: null })
+    });
+  });
 
   await abrirLogado(page, baseURL, token);
   await page.getByRole('button', { name: 'Abrir ajudante Moto Gear' }).click();
@@ -211,7 +216,12 @@ test('ajudante fala respostas, permite ouvir novamente e respeita a configuraç�
   await page.getByRole('button', { name: 'Ouvir esta resposta' }).last().click();
   await expect.poll(() => page.evaluate(() => globalThis.__falasMotoGear.length)).toBe(2);
 
+  await page.fill('#assistente-input', 'Responda depois que eu fechar');
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click();
   await page.getByRole('button', { name: 'Fechar ajudante' }).click();
+  await page.waitForTimeout(250);
+  expect(await page.evaluate(() => globalThis.__falasMotoGear.length)).toBe(2);
+
   await abrirConfig(page);
   await page.locator('#cfg-respostas-voz').uncheck({ force: true });
   await page.locator('#modal-config').getByRole('button', { name: 'Fechar configurações' }).click();

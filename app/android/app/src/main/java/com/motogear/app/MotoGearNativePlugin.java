@@ -107,10 +107,18 @@ public class MotoGearNativePlugin extends Plugin {
         Locale language = Locale.forLanguageTag(languageTag);
         int languageResult = textToSpeech.setLanguage(language);
         if (languageResult == TextToSpeech.LANG_MISSING_DATA || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-            textToSpeech.setLanguage(new Locale("pt", "BR"));
+            languageResult = textToSpeech.setLanguage(new Locale("pt"));
+        }
+        if (languageResult == TextToSpeech.LANG_MISSING_DATA || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+            call.reject("A voz em português não está instalada neste aparelho.");
+            return;
         }
         textToSpeech.setSpeechRate(Math.max(0.5f, Math.min(rate, 1.5f)));
-        textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "motogear-assistant");
+        int result = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "motogear-assistant");
+        if (result == TextToSpeech.ERROR) {
+            call.reject("O aparelho não conseguiu reproduzir a resposta.");
+            return;
+        }
         call.resolve();
     }
 
