@@ -7,6 +7,7 @@ import { abrirModal, fecharModal, el, esc, setVal, showToast, atualizarIcones } 
 let historico = [];
 let rascunhoAtual = null;
 let gravador = null;
+let iniciandoGravacao = false;
 let pedacosAudio = [];
 let fluxoAudio = null;
 let vendaEmPreparacao = null;
@@ -176,7 +177,7 @@ function setOcupado(ocupado, texto = 'Pensando...') {
 }
 
 function podeFalarAutomaticamente() {
-  return el('modal-assistente')?.classList.contains('active') && gravador?.state !== 'recording';
+  return el('modal-assistente')?.classList.contains('active') && !iniciandoGravacao && gravador?.state !== 'recording';
 }
 
 export function abrirAssistente() {
@@ -268,6 +269,7 @@ async function transcreverBlob(blob) {
 }
 
 function encerrarFluxoAudio() {
+  iniciandoGravacao = false;
   fluxoAudio?.getTracks?.().forEach((track) => track.stop());
   fluxoAudio = null;
   el('assistente-mic')?.classList.remove('recording');
@@ -283,13 +285,25 @@ export async function alternarGravacao() {
     return showToast('Gravação de áudio não está disponível neste aparelho.');
   }
   try {
+    iniciandoGravacao = true;
     pararRespostaFalando();
     const nativo = plugin('MotoGearNative');
     if (nativo) {
       const permissao = await nativo.requestMicrophone();
-      if (!permissao?.granted) return showToast('O microfone precisa ser permitido nas configurações do aparelho.');
+      if (!permissao?.granted) {
+        iniciandoGravacao = false;
+        return showToast('O microfone precisa ser permitido nas configurações do aparelho.');
+      }
+    }
+    if (!el('modal-assistente')?.classList.contains('active')) {
+      iniciandoGravacao = false;
+      return;
     }
     fluxoAudio = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (!el('modal-assistente')?.classList.contains('active')) {
+      encerrarFluxoAudio();
+      return;
+    }
     const tipo = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((item) => MediaRecorder.isTypeSupported(item));
     gravador = new MediaRecorder(fluxoAudio, tipo ? { mimeType: tipo } : undefined);
     pedacosAudio = [];
@@ -300,6 +314,7 @@ export async function alternarGravacao() {
       if (blob.size) await transcreverBlob(blob);
     };
     gravador.start();
+    iniciandoGravacao = false;
     el('assistente-mic').classList.add('recording');
     el('assistente-mic-label').textContent = 'Parar';
     el('assistente-status').textContent = 'Ouvindo... toque novamente para enviar';
