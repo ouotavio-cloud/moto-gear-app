@@ -167,6 +167,11 @@ export function criarRotas() {
   );
 
   api.post(
+    '/vendas/cotacao',
+    rota(async (req, res) => res.json(await negocio.cotacaoVenda(req.body ?? {}, req.usuario.organizacaoId)))
+  );
+
+  api.post(
     '/vendas',
     rota(async (req, res) => res.status(201).json(await negocio.registrarVenda(req.body ?? {}, req.usuario.organizacaoId)))
   );

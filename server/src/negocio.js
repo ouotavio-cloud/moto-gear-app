@@ -15,8 +15,10 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import jwt from 'jsonwebtoken';
 import { query, uma, todas, transacao } from './db.js';
 import * as mapear from './mapeadores.js';
+import { segredo } from './auth.js';
 
 export const erro = (status, mensagem) => Object.assign(new Error(mensagem), { status });
 
@@ -110,13 +112,45 @@ async function moverEstoque(tx, baixas, sinal, organizacaoId) {
   }
 }
 
+/** Confere as mesmas baixas da venda sem alterar o estoque. */
+async function validarEstoque(tx, baixas, organizacaoId) {
+  for (const { produtoId, qtd } of baixas) {
+    const { rows } = await tx.query('SELECT nome, qtd FROM produtos WHERE id = $1 AND organizacao_id = $2 FOR UPDATE', [produtoId, organizacaoId]);
+    const produto = rows[0];
+    if (!produto) throw erro(400, 'Uma das peças não existe mais no estoque.');
+    if (Number(produto.qtd) < qtd) {
+      throw erro(409, `Estoque insuficiente: ${produto.nome} (tem ${produto.qtd}, precisa de ${qtd}).`);
+    }
+  }
+}
+
 /* --------------------------------- vendas --------------------------------- */
 
-export function registrarVenda({ itens }, organizacaoId) {
+export function registrarVenda({ itens, cotacao }, organizacaoId) {
   return transacao(async (tx) => {
-    const { total, detalhados } = await precificar(tx, itens, organizacaoId);
+    let total;
+    let detalhados;
+    let baixas;
+    if (cotacao) {
+      let dados;
+      try { dados = jwt.verify(String(cotacao), segredo()); } catch { throw erro(409, 'A cotação da venda expirou. Revise a venda novamente.'); }
+      if (
+        dados?.tipo !== 'venda-cotacao'
+        || dados?.organizacaoId !== organizacaoId
+        || !Array.isArray(dados?.itens)
+        || !Array.isArray(dados?.baixas)
+      ) {
+        throw erro(400, 'Cotação da venda inválida.');
+      }
+      total = dinheiro(dados.total);
+      detalhados = dados.itens;
+      baixas = dados.baixas;
+    } else {
+      ({ total, detalhados } = await precificar(tx, itens, organizacaoId));
+      baixas = await calcularBaixas(tx, detalhados, organizacaoId);
+    }
 
-    await moverEstoque(tx, await calcularBaixas(tx, detalhados, organizacaoId), -1, organizacaoId);
+    await moverEstoque(tx, baixas, -1, organizacaoId);
 
     const resumo = detalhados.map((d) => `${d.qtd}x ${d.nome}`).join(', ');
     await lancar(tx, organizacaoId, {
@@ -130,6 +164,19 @@ export function registrarVenda({ itens }, organizacaoId) {
     });
 
     return { total };
+  });
+}
+
+export function cotacaoVenda({ itens }, organizacaoId) {
+  return transacao(async (tx) => {
+    const { total, detalhados } = await precificar(tx, itens, organizacaoId);
+    const baixas = await calcularBaixas(tx, detalhados, organizacaoId);
+    await validarEstoque(tx, baixas, organizacaoId);
+    const cotacao = jwt.sign(
+      { tipo: 'venda-cotacao', organizacaoId, total, itens: detalhados, baixas },
+      segredo()
+    );
+    return { total, itens: detalhados, cotacao };
   });
 }
 
