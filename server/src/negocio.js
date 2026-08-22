@@ -14,7 +14,7 @@
  * - Concluir lança no caixa apenas o valor pago na hora; o resto vira pendência.
  */
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { query, uma, todas, transacao } from './db.js';
 import * as mapear from './mapeadores.js';
@@ -145,14 +145,15 @@ export function registrarVenda({ itens, cotacao }, organizacaoId) {
         || dados?.organizacaoId !== organizacaoId
         || !Array.isArray(dados?.itens)
         || !Array.isArray(dados?.baixas)
-        || !dados?.cotacaoId
       ) {
         throw erro(400, 'Cotação da venda inválida.');
       }
       total = dinheiro(dados.total);
       detalhados = dados.itens;
       baixas = dados.baixas;
-      cotacaoId = String(dados.cotacaoId);
+      // Tokens emitidos imediatamente antes desta migração não tinham ID. O
+      // hash mantém esses pagamentos em andamento válidos e também idempotentes.
+      cotacaoId = String(dados.cotacaoId || createHash('sha256').update(String(cotacao)).digest('hex'));
     } else {
       ({ total, detalhados } = await precificar(tx, itens, organizacaoId));
       baixas = await calcularBaixas(tx, detalhados, organizacaoId);
