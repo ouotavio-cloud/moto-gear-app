@@ -17,7 +17,7 @@ import * as importar from './importar.js';
 import * as barcode from './barcode.js';
 import * as notafiscal from './notafiscal.js';
 import * as configuracoes from './config.js';
-import * as plugpag from './plugpag.js';
+import * as mercadoPago from './mercado-pago.js';
 import * as pix from './pix.js';
 import { carregarConfigPix } from './pix.js';
 import * as atualizacao from './atualizacao.js';
@@ -247,19 +247,17 @@ const App = {
   alternarGravacaoIA: assistente.alternarGravacao,
   aplicarRascunhoIA: assistente.aplicarRascunho,
 
-  // Maquininha PlugPag
-  ppDebito: () => plugpag.executarCobranca('debito', 1),
-  ppCreditoVista: () => plugpag.executarCobranca('credito_vista', 1),
-  ppCreditoParc: () => plugpag.escolherParcelas(),
+  // Mercado Pago Point Smart 2
+  ppDebito: () => mercadoPago.executarCobranca('debito', 1),
+  ppCreditoVista: () => mercadoPago.executarCobranca('credito_vista', 1),
+  ppCreditoParc: () => mercadoPago.escolherParcelas(),
   ppConfirmarParc: () => {
     const p = parseInt(document.getElementById('pp-parcelas-qtd').value) || 2;
-    const tipo = document.getElementById('pp-parcelas-tipo').value;
-    plugpag.executarCobranca(tipo, p);
+    mercadoPago.executarCobranca('credito_parc_vendedor', p);
   },
-  ppSelecionarMaquininha: plugpag.selecionarMaquininha,
-  ppPix: () => plugpag.executarCobranca('pix', 1),
-  abortarPagamento: plugpag.abortarPagamento,
-  fecharPlugPag: plugpag.fecharPlugPag,
+  ppAtivarModoPdv: mercadoPago.ativarModoPdv,
+  abortarPagamento: mercadoPago.abortarPagamento,
+  fecharPlugPag: mercadoPago.fecharPlugPag,
   venderNoCartao: caixa.venderNoCartao,
   cobrarOSnoCartao: os.cobrarOSnoCartao,
   cobrarPendenciaCartao: clientes.cobrarPendenciaCartao,

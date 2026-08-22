@@ -4,7 +4,7 @@ import { db, req, acao } from './api.js';
 import { el, esc, moeda, showToast, abrirModal, fecharModal, setVal, txt, marcarSubTab } from './ui.js';
 import { clienteAtual, setClienteAtual } from './estado.js';
 import { editarOS, abrirCentralOS } from './os.js';
-import { cobrarNoCartao, maquininhaDisponivel } from './plugpag.js';
+import { cobrarNoCartao, maquininhaDisponivel } from './mercado-pago.js';
 
 export const clientesAtivos = () => db.clientes.filter((c) => c.ativo !== false);
 

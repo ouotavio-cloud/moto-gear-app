@@ -708,7 +708,7 @@
     <button class="nav-item" data-tab-link="clientes" onclick="App.switchTab('clientes', this)"><i data-lucide="users" aria-hidden="true"></i><span>Clientes</span></button>
   </nav>
 
-  <!-- Maquininha PlugPag -->
+  <!-- Mercado Pago Point Smart 2 -->
   <div id="modal-plugpag" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -721,18 +721,17 @@
 
       <div id="pp-conexao" class="mt-4 rounded-xl border border-slate-700 bg-slate-900/60 p-3">
         <div class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-200">
-          <i data-lucide="bluetooth" class="h-4 w-4 text-gear-orange" aria-hidden="true"></i>
-          Maquininha Bluetooth
+          <i data-lucide="wifi" class="h-4 w-4 text-gear-orange" aria-hidden="true"></i>
+          Mercado Pago Point Smart 2
         </div>
-        <div class="flex min-w-0 flex-col gap-2 sm:flex-row">
-          <select id="pp-dispositivo" class="min-w-0 flex-1" aria-label="Maquininha pareada">
-            <option value="">Procurando dispositivos pareados...</option>
-          </select>
-          <button id="btn-pp-conectar" type="button" class="btn-secondary shrink-0" onclick="App.ppSelecionarMaquininha()">
-            <i data-lucide="radio-tower" aria-hidden="true"></i> Conectar
-          </button>
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <div class="rounded-lg bg-gear-800 p-3"><p class="text-xs text-slate-400">Terminal</p><p id="pp-dispositivo" class="mt-1 truncate font-semibold text-white">Localizando…</p></div>
+          <div class="rounded-lg bg-gear-800 p-3"><p class="text-xs text-slate-400">Modo</p><p id="pp-modo" class="mt-1 font-semibold text-white">—</p></div>
         </div>
-        <p id="pp-ajuda-conexao" class="mt-2 text-xs leading-relaxed text-slate-400">A maquininha precisa estar ligada e pareada nas configurações Bluetooth do celular.</p>
+        <p class="mt-2 text-xs leading-relaxed text-slate-400">A cobrança chega pela internet. Deixe a Point ligada e conectada ao Wi-Fi ou 4G.</p>
+        <button id="btn-pp-ativar-pdv" type="button" class="btn-secondary mt-3 hidden" onclick="App.ppAtivarModoPdv()">
+          <i data-lucide="power" aria-hidden="true"></i> Ativar modo PDV
+        </button>
       </div>
 
       <div id="pp-opcoes" class="mt-4 hidden grid-cols-1 gap-2 sm:grid-cols-2">
@@ -754,20 +753,12 @@
             <option>10</option><option>11</option><option>12</option>
               </select>
             </label>
-            <label class="text-xs font-semibold text-slate-300">Juros do parcelamento
-              <select id="pp-parcelas-tipo" class="mt-1 w-full">
-                <option value="credito_parc_vendedor">Loja (sem juros ao cliente)</option>
-                <option value="credito_parc_comprador">Cliente</option>
-              </select>
-            </label>
+            <div class="rounded-xl border border-slate-700 p-3 text-xs leading-relaxed text-slate-300"><i data-lucide="badge-percent" class="mr-1" aria-hidden="true"></i> Parcelamento configurado para a loja.</div>
           </div>
           <button class="btn-primary mt-3 w-full !bg-purple-600 !bg-none" onclick="App.ppConfirmarParc()">
             <i data-lucide="arrow-right" aria-hidden="true"></i> Continuar cobrança
           </button>
         </div>
-        <button class="btn-primary !bg-teal-600 !bg-none sm:col-span-2" onclick="App.ppPix()">
-          <i data-lucide="qr-code" aria-hidden="true"></i> Pix na maquininha
-        </button>
       </div>
 
       <button id="btn-pp-abortar" class="btn-danger mt-4 hidden" onclick="App.abortarPagamento()">
@@ -775,9 +766,9 @@
       </button>
 
       <div id="pp-resultado" class="mt-4 hidden rounded-lg border border-green-600 bg-green-900/30 p-3">
-        <p class="text-sm text-green-300"><i data-lucide="circle-check"></i> Bandeira: <span id="pp-bandeira"></span></p>
-        <p class="text-sm text-green-300">NSU: <span id="pp-nsu"></span></p>
-        <p class="text-sm text-green-300">Aut: <span id="pp-autorizacao"></span></p>
+        <p class="text-sm text-green-300"><i data-lucide="circle-check"></i> Cartão: <span id="pp-bandeira"></span></p>
+        <p class="text-sm text-green-300">Referência: <span id="pp-nsu"></span></p>
+        <p class="text-sm text-green-300">Parcelas: <span id="pp-autorizacao"></span></p>
       </div>
     </div>
   </div>

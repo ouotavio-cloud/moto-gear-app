@@ -10,7 +10,7 @@ import { db, req, acao } from './api.js';
 import { el, esc, moeda, showToast, abrirModal, fecharModal, setVal, txt, num, int } from './ui.js';
 import { precoTotalServico } from './servicos.js';
 import { clienteAtual, nomeCliente } from './estado.js';
-import { cobrarNoCartao, maquininhaDisponivel } from './plugpag.js';
+import { cobrarNoCartao, maquininhaDisponivel } from './mercado-pago.js';
 
 let itensTemp = [];
 
