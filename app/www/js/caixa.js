@@ -116,7 +116,12 @@ export async function abrirModalVenda() {
 }
 
 export async function prepararVendaAssistente(itens = []) {
-  await carregarEstado();
+  try {
+    await carregarEstado();
+  } catch (err) {
+    showToast(err.message || 'Não foi possível atualizar os itens da venda. Tente novamente.');
+    return false;
+  }
   itensVendaTemp = [];
   cotacaoVendaAtual = '';
   for (const item of itens) {
@@ -132,7 +137,10 @@ export async function prepararVendaAssistente(itens = []) {
       itensVendaTemp.push({ tipo: 'servico', itemId: servico.id, nome: servico.nome, qtd, total: precoTotalServico(servico) * qtd });
     }
   }
-  if (!itensVendaTemp.length) return showToast('O item da venda não está mais disponível.');
+  if (!itensVendaTemp.length) {
+    showToast('O item da venda não está mais disponível.');
+    return false;
+  }
 
   setVal('venda-add-qtd', 1);
   mudarTipoVenda();
@@ -142,6 +150,7 @@ export async function prepararVendaAssistente(itens = []) {
   abrirModal('modal-venda');
   await carregarConfigPix();
   el('btn-venda-pix')?.classList.toggle('hidden', !pixDisponivel());
+  return true;
 }
 
 const itensParaEnvio = () => itensVendaTemp.map(({ tipo, itemId, qtd }) => ({ tipo, itemId, qtd }));
@@ -159,6 +168,8 @@ async function registrarVendaCotada(cotacao = cotacaoVendaAtual) {
   return acao(req('POST', '/vendas', { cotacao }));
 }
 
+const avisoEstoque = (resultado) => resultado?.estoquePendente?.length ? ' — atenção: confira o estoque pendente' : '';
+
 export async function salvarVenda() {
   if (!itensVendaTemp.length) return showToast('Adicione ao menos um item.');
 
@@ -167,7 +178,7 @@ export async function salvarVenda() {
   const { ok, resultado } = await registrarVendaCotada(cotacao.cotacao);
   if (ok) {
     fecharModal('modal-venda');
-    showToast(`Venda registrada — ${moeda(resultado.total)}`);
+    showToast(`Venda registrada — ${moeda(resultado.total)}${avisoEstoque(resultado)}`);
   }
 }
 
@@ -185,7 +196,7 @@ export async function venderNoCartao() {
     const { ok, resultado: vendaRes } = await registrarVendaCotada(cotacao.cotacao);
     if (ok) {
       fecharModal('modal-venda');
-      showToast(`Venda no cartão — ${moeda(vendaRes.total)}`);
+      showToast(`Venda no cartão — ${moeda(vendaRes.total)}${avisoEstoque(vendaRes)}`);
     }
   }
 }
@@ -204,7 +215,7 @@ export async function venderNoPix() {
     const { ok, resultado: vendaRes } = await registrarVendaCotada(cotacao.cotacao);
     if (ok) {
       fecharModal('modal-venda');
-      showToast(`Venda no Pix — ${moeda(vendaRes.total)}`);
+      showToast(`Venda no Pix — ${moeda(vendaRes.total)}${avisoEstoque(vendaRes)}`);
     }
   }
 }

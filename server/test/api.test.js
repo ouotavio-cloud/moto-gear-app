@@ -291,12 +291,15 @@ test('cotação fixa o valor que será registrado mesmo se o preço mudar depois
   assert.ok(cotada.corpo.cotacao);
 
   await api('PUT', `/produtos/${produto.id}`, { ...produto, venda: 50 });
+  const concorrente = await api('POST', '/vendas', { itens: [{ tipo: 'produto', itemId: produto.id, qtd: 3 }] });
+  assert.equal(concorrente.status, 201);
   const confirmada = await api('POST', '/vendas', { cotacao: cotada.corpo.cotacao });
   assert.equal(confirmada.status, 201);
   assert.equal(confirmada.corpo.total, 70);
+  assert.deepEqual(confirmada.corpo.estoquePendente.map(({ nome, faltam }) => ({ nome, faltam })), [{ nome: 'Óleo cotado', faltam: 1 }]);
 
   const atual = await estado(api);
-  assert.equal(atual.produtos.find((p) => p.id === produto.id).qtd, 2);
+  assert.equal(atual.produtos.find((p) => p.id === produto.id).qtd, -1);
   assert.ok(atual.transacoes.some((t) => t.origem === 'venda' && t.valor === 70));
 });
 

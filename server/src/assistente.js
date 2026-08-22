@@ -124,7 +124,8 @@ function pontuar(nome, busca) {
   if (alvo === busca) return 1_000;
   if (alvo.startsWith(busca) || alvo.includes(busca)) return 800 - Math.abs(alvo.length - busca.length);
   if (busca.includes(alvo)) return 700 - Math.abs(alvo.length - busca.length);
-  const termos = busca.split(' ').filter(Boolean);
+  const ignorados = new Set(['a', 'as', 'de', 'do', 'da', 'dos', 'das', 'o', 'os', 'para', 'pra', 'por', 'favor', 'unidade', 'unidades']);
+  const termos = busca.split(' ').filter((termo) => termo && !ignorados.has(termo));
   const encontrados = termos.filter((termo) => alvo.includes(termo)).length;
   return encontrados ? (encontrados / termos.length) * 500 : 0;
 }

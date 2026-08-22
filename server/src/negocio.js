@@ -101,15 +101,18 @@ async function calcularBaixas(tx, itens, organizacaoId) {
  * Aplica as baixas travando as linhas envolvidas. `sinal` -1 debita, +1 devolve.
  * A trava é o que impede duas vendas simultâneas de furarem o estoque.
  */
-async function moverEstoque(tx, baixas, sinal, organizacaoId) {
+async function moverEstoque(tx, baixas, sinal, organizacaoId, permitirNegativo = false) {
+  const pendencias = [];
   for (const { produtoId, qtd } of baixas) {
     const { rows } = await tx.query('SELECT nome, qtd FROM produtos WHERE id = $1 AND organizacao_id = $2 FOR UPDATE', [produtoId, organizacaoId]);
     const produto = rows[0];
     if (!produto) throw erro(400, 'Uma das peças não existe mais no estoque.');
     const novo = Number(produto.qtd) + sinal * qtd;
-    if (novo < 0) throw erro(409, `Estoque insuficiente: ${produto.nome} (tem ${produto.qtd}, precisa de ${qtd}).`);
+    if (novo < 0 && !permitirNegativo) throw erro(409, `Estoque insuficiente: ${produto.nome} (tem ${produto.qtd}, precisa de ${qtd}).`);
+    if (novo < 0) pendencias.push({ produtoId, nome: produto.nome, faltam: Math.abs(novo) });
     await tx.query('UPDATE produtos SET qtd = $1 WHERE id = $2 AND organizacao_id = $3', [novo, produtoId, organizacaoId]);
   }
+  return pendencias;
 }
 
 /** Confere as mesmas baixas da venda sem alterar o estoque. */
@@ -150,7 +153,10 @@ export function registrarVenda({ itens, cotacao }, organizacaoId) {
       baixas = await calcularBaixas(tx, detalhados, organizacaoId);
     }
 
-    await moverEstoque(tx, baixas, -1, organizacaoId);
+    // Uma cotação é usada depois que Dinheiro, Cartão ou Pix já foi confirmado.
+    // Se outra pessoa consumir a última peça nesse intervalo, registrar a venda
+    // e sinalizar a falta é mais seguro que deixar um pagamento aprovado órfão.
+    const estoquePendente = await moverEstoque(tx, baixas, -1, organizacaoId, Boolean(cotacao));
 
     const resumo = detalhados.map((d) => `${d.qtd}x ${d.nome}`).join(', ');
     await lancar(tx, organizacaoId, {
@@ -163,7 +169,7 @@ export function registrarVenda({ itens, cotacao }, organizacaoId) {
       itens: detalhados.map(({ tipo: t, itemId: i, nome: n, qtd: q }) => ({ tipo: t, itemId: i, nome: n, qtd: q }))
     });
 
-    return { total };
+    return { total, estoquePendente };
   });
 }
 
