@@ -655,7 +655,7 @@ test('ajudante recusa quantidade acima do estoque sem criar rascunho', async () 
 
 test('ajudante não confunde uma marca ausente com outro óleo', async () => {
   await criarProduto(api, { nome: 'Óleo Yamalube 20W50', custo: 20, venda: 35, qtd: 6 });
-  const resposta = await api('POST', '/assistente/venda', { mensagem: 'Venda óleo Motul' });
+  const resposta = await api('POST', '/assistente/venda', { mensagem: 'Venda óleo MarcaAusenteXYZ' });
   assert.equal(resposta.status, 200);
   assert.equal(resposta.corpo.rascunho, null);
   assert.match(resposta.corpo.resposta, /não encontrei/i);
